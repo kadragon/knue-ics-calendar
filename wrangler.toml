@@ -1,0 +1,16 @@
+name = "knue-ics-calendar"
+main = "src/index.ts"
+
+compatibility_date = "2024-07-20"
+
+[[kv_namespaces]]
+binding = "KNUE_CAL_KV"
+
+
+
+# 매 30분마다 실행
+[triggers]
+crons = ["*/30 * * * *"]
+
+[env.production]
+# Production-specific settings
