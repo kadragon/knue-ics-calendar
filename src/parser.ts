@@ -1,7 +1,6 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
-import { log } from './utils/logger';
-
+import { log } from "./utils/logger";
 
 interface Event {
   start: Date;
@@ -29,13 +28,16 @@ const HOLIDAYS = [
  * 날짜 텍스트를 파싱하여 ISO 형식의 날짜 문자열로 변환합니다.
  * @param {string} dateText - 날짜 텍스트 ('MM.DD' 형식).
  * @param {number} currentYear - 현재 연도.
- * @returns {string} ISO 형식의 날짜 문자열 ('YYYY-MM-DD').
+ * @returns {string | null} ISO 형식의 날짜 문자열 ('YYYY-MM-DD') 또는 파싱 실패 시 null.
  */
-const parseDate = (dateText: string, currentYear: number): string => {
-  const [month, day] = dateText
-    .match(/\d+/g)!
-    .map((num) => num.padStart(2, "0"));
-  const year = Number(currentYear) + (Number(month) >= 3 ? 0 : 1); // Adjust year if month is Jan/Feb for academic year
+const parseDate = (dateText: string, currentYear: number): string | null => {
+  const dateParts = dateText.match(/\d{1,2}/g); // 최대 두 자리 숫자만 매칭
+  if (!dateParts || dateParts.length < 2) {
+    log("warn", "Could not parse date from text", { dateText });
+    return null;
+  }
+  const [month, day] = dateParts.map((num) => num.padStart(2, "0"));
+  const year = Number(currentYear) + (Number(month) >= 3 ? 0 : 1); // 학사연도 기준 3월 이전이면 다음 해
   return `${year}-${month}-${day}`;
 };
 
@@ -54,12 +56,11 @@ const isHoliday = (title: string): boolean =>
  */
 export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
   // Use mock data in development mode
-  
 
   const url = `https://www.knue.ac.kr/www/selectSchdleWebList.do?key=542&searchY=${currentYear}&searchM=3`; // Start from March for academic year
 
   try {
-    log('info', `Fetching events from ${url}`);
+    log("info", `Fetching events from ${url}`);
     const { data } = await axios.get(url);
     const $ = cheerio.load(data);
     const events: Event[] = [];
@@ -75,7 +76,7 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
         .replace(/\s+/g, "")
         .trim();
       if (!startText) {
-        log('warn', 'Skipping event due to missing start date', { title });
+        log("warn", "Skipping event due to missing start date", { title });
         return;
       }
 
@@ -87,15 +88,29 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
         .trim();
       if (!endText) endText = startText;
 
-      const startDate = new Date(parseDate(startText, currentYear));
-      const endDate = new Date(parseDate(endText, currentYear));
+      const startIso = parseDate(startText, currentYear);
+      if (!startIso) {
+        // 날짜 파싱 실패 시 해당 이벤트 건너뜀
+        return;
+      }
+
+      let endIso = parseDate(endText, currentYear);
+      if (!endIso) {
+        endIso = startIso; // 종료일이 없거나 파싱 실패 시 시작일과 동일하게 설정
+      }
+
+      const startDate = new Date(startIso);
+      const endDate = new Date(endIso);
 
       events.push({ start: startDate, end: endDate, title });
     });
-    log('info', `Successfully parsed ${events.length} events`);
+    log("info", `Successfully parsed ${events.length} events`);
     return events;
   } catch (error: any) {
-    log('error', "Error parsing academic calendar:", { error: error.message, url });
+    log("error", "Error parsing academic calendar:", {
+      error: error.message,
+      url,
+    });
     return [];
   }
 }
