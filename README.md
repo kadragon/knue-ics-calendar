@@ -34,11 +34,12 @@ This project is a Cloudflare Worker that parses the academic calendar from the K
    - Give it a name (e.g., `KNUE_CALENDAR_KV`).
    - Update `wrangler.toml` with your KV Namespace ID and binding name:
 
-     ```toml
-     [[kv_namespaces]]
-     binding = "CAL_KV" # This should match the binding name in src/index.ts Env interface
-     id = "YOUR_KV_NAMESPACE_ID"
-     ```
+   ```toml
+   [[kv_namespaces]]
+
+   binding = "KNUE_CAL_KV" # This should match the binding name in wrangler.toml and the property in the Env interface in src/index.ts
+   id = "YOUR_KV_NAMESPACE_ID"
+   ```
 
 4. **Configure Cron Trigger:**
 
