@@ -1,10 +1,10 @@
 name = "knue-ics-calendar"
 main = "src/index.ts"
-compatibility_date = "2025-07-20"
+compatibility_date = "2024-07-20"
 
 [[kv_namespaces]]
-binding = "CAL_KV"
-id = "xxxxxxxxxxxxxxxxxxxx"
+binding = "KNUE_CAL_KV"
+id = "1c76e5f4218341d495b39b38c9a7f0f8"
 
 # 매 30분마다 실행
 [[triggers]]
