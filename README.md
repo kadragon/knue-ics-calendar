@@ -36,7 +36,7 @@ This project is a Cloudflare Worker that parses the academic calendar from the K
 
         ```toml
         [[kv_namespaces]]
-        binding = "CAL_KV" # This should match the binding name in src/index.ts Env interface
+binding = "KNUE_CAL_KV" # This should match the binding name in wrangler.toml and the property in the Env interface in src/index.ts
         id = "YOUR_KV_NAMESPACE_ID"
         ```
 
