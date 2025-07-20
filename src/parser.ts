@@ -1,5 +1,12 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
+import axios from "axios";
+import * as cheerio from "cheerio";
+
+interface Event {
+  start: Date;
+  end: Date;
+  title: string;
+  url?: string;
+}
 
 const HOLIDAYS = [
   "개천절",
@@ -22,11 +29,11 @@ const HOLIDAYS = [
  * @param {number} currentYear - 현재 연도.
  * @returns {string} ISO 형식의 날짜 문자열 ('YYYY-MM-DD').
  */
-const parseDate = (dateText, currentYear) => {
+const parseDate = (dateText: string, currentYear: number): string => {
   const [month, day] = dateText
-    .match(/\d+/g)
+    .match(/\d+/g)!
     .map((num) => num.padStart(2, "0"));
-  const year = Number(currentYear) + (month >= "03" ? 0 : 1);
+  const year = Number(currentYear) + (Number(month) >= 3 ? 0 : 1); // Adjust year if month is Jan/Feb for academic year
   return `${year}-${month}-${day}`;
 };
 
@@ -35,21 +42,21 @@ const parseDate = (dateText, currentYear) => {
  * @param {string} title - 이벤트 제목.
  * @returns {boolean} 공휴일 여부.
  */
-const isHoliday = (title) =>
+const isHoliday = (title: string): boolean =>
   HOLIDAYS.some((holiday) => title.includes(holiday));
 
 /**
  * 주어진 연도에 대한 학사 일정을 파싱합니다.
  * @param {number} currentYear - 파싱할 연도.
- * @returns {Promise<Array>} 학사 일정을 담은 객체 배열.
+ * @returns {Promise<Event[]>} 학사 일정을 담은 객체 배열.
  */
-async function parseCalendar(currentYear) {
-  const url = `https://www.knue.ac.kr/www/selectSchdleWebList.do?key=542&searchY=${currentYear}&searchM=3`;
+export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
+  const url = `https://www.knue.ac.kr/www/selectSchdleWebList.do?key=542&searchY=${currentYear}&searchM=3`; // Start from March for academic year
 
   try {
     const { data } = await axios.get(url);
     const $ = cheerio.load(data);
-    const events = [];
+    const events: Event[] = [];
 
     $("table.more_year tbody tr").each(function () {
       const title = $(this).find(".more_link").text().trim();
@@ -71,17 +78,15 @@ async function parseCalendar(currentYear) {
         .trim();
       if (!endText) endText = startText;
 
-      const startDate = parseDate(startText, currentYear);
-      const endDate = parseDate(endText, currentYear);
+      const startDate = new Date(parseDate(startText, currentYear));
+      const endDate = new Date(parseDate(endText, currentYear));
 
-      events.push({ startDate, endDate, title });
+      events.push({ start: startDate, end: endDate, title });
     });
 
     return events;
   } catch (error) {
-    console.error("학사 일정 파싱 중 오류 발생:", error);
+    console.error("Error parsing academic calendar:", error);
     return [];
   }
 }
-
-module.exports = parseCalendar;

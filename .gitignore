@@ -148,3 +148,5 @@ dev-debug.log
 .taskmaster/
 .gemini/
 .github/instructions/
+
+.wrangler

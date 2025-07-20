@@ -1,5 +1,5 @@
 import { ICalCalendar } from "ical-generator";
-// import { getEventsFromSite } from './parser'; // ❶ 사이트 파싱 로직
+import { getEventsFromSite } from './parser'; // ❶ 사이트 파싱 로직
 
 export default {
   async fetch(req: Request, env: Env) {
@@ -18,17 +18,28 @@ export default {
 
   // Cron Trigger
   async scheduled(_evt: ScheduledController, env: Env) {
-    // const events = await getEventsFromSite();         // ❷ 최신 데이터 크롤링
-    const cal = new ICalCalendar({ name: "KNUE ICS" });
+    console.log("Scheduled function called!");
+    const currentYear = new Date().getFullYear();
+    const events = await getEventsFromSite(currentYear);
 
-    // events.forEach(e => cal.createEvent({
-    //   start: e.start,
-    //   end:   e.end,
-    //   summary: e.title,
-    //   url: e.url,
-    // }));
+    const calendar = new ICalCalendar({
+      name: "한국교원대학교 학사/행사 일정",
+      prodId: "-//Github@kadragon//haksaICS//KO",
+      timezone: "Asia/Seoul",
+      url: "https://github.com/kadragon/haksaICS",
+    });
 
-    await env.CAL_KV.put("latest", cal.toString()); // ❸ KV에 저장
+    events.forEach((event) => {
+      calendar.createEvent({
+        start: event.start,
+        end: event.end,
+        summary: event.title,
+      });
+    });
+
+    const icsString = calendar.toString();
+    await env.CAL_KV.put("latest", icsString);
+    console.log("ICS generated and saved to KV!");
   },
 };
 
