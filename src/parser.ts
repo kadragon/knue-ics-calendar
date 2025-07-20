@@ -1,5 +1,7 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
+import { log } from './utils/logger';
+
 
 interface Event {
   start: Date;
@@ -51,9 +53,13 @@ const isHoliday = (title: string): boolean =>
  * @returns {Promise<Event[]>} 학사 일정을 담은 객체 배열.
  */
 export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
+  // Use mock data in development mode
+  
+
   const url = `https://www.knue.ac.kr/www/selectSchdleWebList.do?key=542&searchY=${currentYear}&searchM=3`; // Start from March for academic year
 
   try {
+    log('info', `Fetching events from ${url}`);
     const { data } = await axios.get(url);
     const $ = cheerio.load(data);
     const events: Event[] = [];
@@ -68,7 +74,10 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
         .text()
         .replace(/\s+/g, "")
         .trim();
-      if (!startText) return;
+      if (!startText) {
+        log('warn', 'Skipping event due to missing start date', { title });
+        return;
+      }
 
       let endText = $(this)
         .find(".end")
@@ -83,10 +92,10 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
 
       events.push({ start: startDate, end: endDate, title });
     });
-
+    log('info', `Successfully parsed ${events.length} events`);
     return events;
-  } catch (error) {
-    console.error("Error parsing academic calendar:", error);
+  } catch (error: any) {
+    log('error', "Error parsing academic calendar:", { error: error.message, url });
     return [];
   }
 }
