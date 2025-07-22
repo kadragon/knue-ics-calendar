@@ -60,7 +60,13 @@ To run the worker locally with mock data for testing:
 npm run dev
 ```
 
-This will start a local development server. You can access the ICS file at `http://localhost:8787/calendar.ics` (or the port indicated by Wrangler).
+This will start a local development server. You can access the ICS file at `http://localhost:8787/events.ics` (or the port indicated by Wrangler).
+
+To manually trigger the scheduled function locally (e.g., to force ICS regeneration):
+
+```bash
+curl "http://localhost:8787/cdn-cgi/handler/scheduled"
+```
 
 ## Deployment
 
@@ -96,19 +102,19 @@ To subscribe to this calendar, replace `your-worker-domain.workers.dev` with you
 
 1. Go to Settings > Calendar > Accounts > Add Account > Other
 2. Select "Add Subscribed Calendar"
-3. Enter the URL: `https://your-worker-domain.workers.dev/calendar.ics`
+3. Enter the URL: `https://your-worker-domain.workers.dev/events.ics`
 
 ### Google Calendar
 
 1. Open Google Calendar
 2. Click the + next to "Other calendars"
 3. Select "From URL"
-4. Enter the URL: `https://your-worker-domain.workers.dev/calendar.ics`
+4. Enter the URL: `https://your-worker-domain.workers.dev/events.ics`
 5. Click "Add Calendar"
 
 ### Microsoft Outlook
 
 1. Open Outlook Calendar
 2. Right-click on "Calendars" and select "Add Calendar" > "From Internet"
-3. Enter the URL: `https://your-worker-domain.workers.dev/calendar.ics`
+3. Enter the URL: `https://your-worker-domain.workers.dev/events.ics`
 4. Click "OK"

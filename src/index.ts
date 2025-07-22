@@ -70,7 +70,10 @@ export default {
           calendar.createEvent({
             start: event.start,
             end: event.start, // Event ends on the same day
-            summary: `${event.title} (~${event.end.getMonth() + 1}.${event.end.getDate().toString().padStart(2, '0')})`,
+            summary: `${event.title} (~${event.end.getMonth() + 1}. ${event.end
+              .getDate()
+              .toString()}.)`,
+            allDay: true,
           });
 
           // Create end event
@@ -78,12 +81,14 @@ export default {
             start: event.end,
             end: event.end, // Event ends on the same day
             summary: event.title,
+            allDay: true,
           });
         } else {
           calendar.createEvent({
             start: event.start,
             end: event.end,
             summary: event.title,
+            allDay: true,
           });
         }
       });
