@@ -58,10 +58,9 @@ describe('Retry Utility', () => {
       backoffMultiplier: 2 
     });
     
-    // First retry: 100ms
-    await vi.advanceTimersByTimeAsync(100);
-    // Second retry: 200ms
-    await vi.advanceTimersByTimeAsync(200);
+    // Advance through all retry delays
+    // First retry: 100ms, Second retry: 200ms
+    await vi.advanceTimersByTimeAsync(300);
     
     await expect(promise).rejects.toThrow('fail');
     expect(mockFn).toHaveBeenCalledTimes(3);

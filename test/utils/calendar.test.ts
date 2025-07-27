@@ -10,7 +10,8 @@ describe('Calendar Utility', () => {
     expect(calendar.timezone()).toBe('Asia/Seoul');
     
     const events = calendar.events();
-    expect(events).toHaveLength(3); // 3 events from mockEvents
+    // mockEvents has 3 events, but one gets split because it's >3 days (기말고사 기간)
+    expect(events).toHaveLength(4); // 개강일(1) + 중간고사(1) + 기말고사 기간 split(2)
   });
 
   it('should create single event for short duration events', () => {
