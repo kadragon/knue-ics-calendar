@@ -4,16 +4,26 @@ interface RetryOptions {
   maxRetries: number;
   delayMs: number;
   backoffMultiplier: number;
+  jitterMs: number;
 }
 
 const DEFAULT_OPTIONS: RetryOptions = {
   maxRetries: 3,
   delayMs: 1000,
-  backoffMultiplier: 2
+  backoffMultiplier: 2,
+  jitterMs: 1000 // Add up to 1 second of random jitter
 };
 
 /**
- * Retry a function with exponential backoff
+ * Retry a function with exponential backoff and jitter
+ * 
+ * Uses exponential backoff to gradually increase delay between retries.
+ * Adds random jitter to prevent thundering herd problem when multiple
+ * clients retry at the same time after a failure.
+ * 
+ * @param fn - The function to retry
+ * @param options - Retry configuration options
+ * @returns Promise that resolves with the function result or rejects with the last error
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
@@ -38,7 +48,11 @@ export async function withRetry<T>(
         break;
       }
 
-      const delay = opts.delayMs * Math.pow(opts.backoffMultiplier, attempt - 1);
+      // Calculate delay with exponential backoff and jitter to prevent thundering herd
+      const baseDelay = opts.delayMs * Math.pow(opts.backoffMultiplier, attempt - 1);
+      const jitter = Math.floor(Math.random() * opts.jitterMs);
+      const delay = baseDelay + jitter;
+      
       log("warn", `Request failed, retrying in ${delay}ms`, { 
         attempt, 
         maxRetries: opts.maxRetries, 

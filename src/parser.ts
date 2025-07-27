@@ -62,12 +62,17 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
       let title = $(this).find(".more_link").text().trim();
 
       // Clean up title for ICS compatibility
-      title = title.replace(/[,]/g, " "); // Replace commas with spaces
-      title = title.replace(/\s+/g, " "); // Replace multiple spaces with single space
-      title = title.replace(/학년도 /g, "-"); // Shorten academic year
+      // RFC 5545 specifies that commas, semicolons, and backslashes should be escaped in TEXT values
+      // However, some calendar apps have parsing issues with escaped characters
+      // Replacing commas with spaces provides better compatibility across different clients
+      title = title.replace(/[,]/g, " "); // Replace commas to avoid escaping issues
+      title = title.replace(/\s+/g, " "); // Normalize whitespace for cleaner display
+      title = title.replace(/학년도 /g, "-"); // Shorten academic year format for brevity
       title = title.trim();
 
-      // Truncate title if still too long (ICS apps may have issues with long titles)
+      // Limit title length to prevent line wrapping issues in ICS format
+      // RFC 5545 allows line folding, but some calendar apps don't handle it well
+      // Keeping titles under 45 characters ensures better cross-platform compatibility
       if (title.length > 45) {
         title = title.substring(0, 42) + "...";
       }

@@ -1,6 +1,7 @@
 import { getEventsFromSite } from "./parser";
 import { log } from "./utils/logger";
 import { createCalendarWithEvents } from "./utils/calendar";
+import { generateEtag } from "./utils/etag";
 import { Env } from "./types";
 import { CACHE_CONFIG } from "./constants";
 
@@ -15,12 +16,7 @@ export default {
           return new Response("Calendar not available yet", { status: 503 });
         }
         // Generate content-based ETag using hash
-        const encoder = new TextEncoder();
-        const data = encoder.encode(ics);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        const etag = `"${hashHex.substring(0, 16)}"`;
+        const etag = await generateEtag(ics);
 
         // Check If-None-Match header
         const ifNoneMatch = req.headers.get("if-none-match");
