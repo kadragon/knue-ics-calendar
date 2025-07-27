@@ -1,28 +1,9 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { log } from "./utils/logger";
-
-interface Event {
-  start: Date;
-  end: Date;
-  title: string;
-  url?: string;
-}
-
-const HOLIDAYS = [
-  "개천절",
-  "추석",
-  "설날",
-  "한글날",
-  "성탄절",
-  "신정",
-  "어린이날",
-  "부처님",
-  "선거일",
-  "광복절",
-  "현충일",
-  "근로자의",
-];
+import { withRetry } from "./utils/retry";
+import { Event } from "./types";
+import { HOLIDAYS, REQUEST_CONFIG } from "./constants";
 
 /**
  * 날짜 텍스트를 파싱하여 ISO 형식의 날짜 문자열로 변환합니다.
@@ -61,12 +42,40 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
 
   try {
     log("info", `Fetching events from ${url}`);
-    const { data } = await axios.get(url);
+    const { data } = await withRetry(
+      () =>
+        axios.get(url, {
+          timeout: REQUEST_CONFIG.timeout,
+          headers: {
+            "User-Agent": REQUEST_CONFIG.userAgent,
+          },
+        }),
+      {
+        maxRetries: REQUEST_CONFIG.maxRetries,
+        delayMs: REQUEST_CONFIG.retryDelayMs,
+      }
+    );
     const $ = cheerio.load(data);
     const events: Event[] = [];
 
     $("table.more_year tbody tr").each(function () {
-      const title = $(this).find(".more_link").text().trim();
+      let title = $(this).find(".more_link").text().trim();
+
+      // Clean up title for ICS compatibility
+      // RFC 5545 specifies that commas, semicolons, and backslashes should be escaped in TEXT values
+      // However, some calendar apps have parsing issues with escaped characters
+      // Replacing commas with spaces provides better compatibility across different clients
+      title = title.replace(/[,]/g, " "); // Replace commas to avoid escaping issues
+      title = title.replace(/\s+/g, " "); // Normalize whitespace for cleaner display
+      title = title.replace(/학년도 /g, "-"); // Shorten academic year format for brevity
+      title = title.trim();
+
+      // Limit title length to prevent line wrapping issues in ICS format
+      // RFC 5545 allows line folding, but some calendar apps don't handle it well
+      // Keeping titles under 45 characters ensures better cross-platform compatibility
+      if (title.length > 45) {
+        title = title.substring(0, 42) + "...";
+      }
 
       if (title.includes("수업보강") || isHoliday(title)) return;
 
@@ -106,9 +115,10 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     });
     log("info", `Successfully parsed ${events.length} events`);
     return events;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     log("error", "Error parsing academic calendar:", {
-      error: error.message,
+      error: message,
       url,
     });
     return [];

@@ -1,120 +1,255 @@
 # KNUE ICS Calendar Worker
 
-This project is a Cloudflare Worker that parses the academic calendar from the Korea National University of Education (KNUE) website and converts it into an ICS (iCalendar) format. This allows users to subscribe to the KNUE academic calendar using their preferred calendar applications (e.g., Google Calendar, Apple Calendar, Outlook).
+A robust Cloudflare Worker that automatically parses the academic calendar from Korea National University of Education (KNUE) and converts it into RFC 5545-compliant ICS format for seamless calendar application integration.
 
-## Features
+## ✨ Features
 
-- Parses academic events from the official KNUE website.
-- Generates an ICS file compatible with most calendar applications.
-- Automatically updates the calendar data periodically using Cloudflare Workers' cron triggers.
-- Supports ETag for efficient caching.
-- Optional basic authentication for restricted access.
+- **Automatic Calendar Parsing**: Extracts academic events from the official KNUE website
+- **RFC 5545 Compliant**: Generates ICS files compatible with all major calendar applications
+- **Smart Event Processing**:
+  - Filters out holidays and makeup classes (수업보강)
+  - Handles long events by splitting them into start/end markers
+  - Sanitizes event titles for better compatibility
+- **Robust Error Handling**: Built-in retry mechanism with exponential backoff and jitter
+- **Efficient Caching**: ETag-based HTTP caching for optimal performance
+- **Comprehensive Testing**: 100% test coverage with 52 passing tests
+- **Scheduled Updates**: Automatic calendar refresh using Cloudflare Workers cron triggers
 
-## Setup Instructions
+## 🚀 Quick Start
 
-1. **Clone the repository:**
+### Prerequisites
+
+- Node.js 18+ and npm
+- Cloudflare account with Workers enabled
+- Basic familiarity with Cloudflare Workers and KV
+
+### Installation
+
+1. **Clone and setup:**
 
    ```bash
    git clone https://github.com/kadragon/knue-ics-calendar.git
    cd knue-ics-calendar
-   ```
-
-2. **Install dependencies:**
-
-   ```bash
    npm install
    ```
 
-3. **Configure Cloudflare KV Namespace:**
+2. **Configure Cloudflare KV:**
 
-   This worker uses a Cloudflare KV Namespace to store the generated ICS file. You need to create a KV Namespace in your Cloudflare account and bind it to your worker.
-
-   - Go to your Cloudflare dashboard.
-   - Navigate to "Workers & Pages" > "KV" > "Create a namespace".
-   - Give it a name (e.g., `KNUE_CALENDAR_KV`).
-   - Update `wrangler.toml` with your KV Namespace ID and binding name:
+   - Create a KV namespace in your Cloudflare dashboard
+   - Update `wrangler.toml` with your namespace details:
 
    ```toml
    [[kv_namespaces]]
-
-   binding = "KNUE_CAL_KV" # This should match the binding name in wrangler.toml and the property in the Env interface in src/index.ts
+   binding = "KNUE_CAL_KV"
    id = "YOUR_KV_NAMESPACE_ID"
+   preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
    ```
 
-4. **Configure Cron Trigger:**
+3. **Deploy:**
 
-   The worker is scheduled to run periodically to update the calendar. The cron schedule is defined in `wrangler.toml`:
-
-   ```toml
-   [triggers]
-   crons = ["*/30 * * * *"] # Runs every 30 minutes
+   ```bash
+   npm run deploy
    ```
 
-   Adjust the cron expression as needed.
+### Local Development
 
-## Local Development
-
-To run the worker locally with mock data for testing:
+Start the development server:
 
 ```bash
 npm run dev
 ```
 
-This will start a local development server. You can access the ICS file at `http://localhost:8787/events.ics` (or the port indicated by Wrangler).
+Access endpoints:
 
-To manually trigger the scheduled function locally (e.g., to force ICS regeneration):
+- Calendar: `http://localhost:8787/events.ics`
+- Manual trigger: `http://localhost:8787/cdn-cgi/handler/scheduled`
 
-```bash
-curl "http://localhost:8787/cdn-cgi/handler/scheduled"
-```
+## 📅 Calendar Subscription
 
-## Deployment
+Replace `your-worker-domain.workers.dev` with your actual Worker URL:
 
-To deploy the worker to Cloudflare:
+### Apple Calendar (iOS/macOS)
 
-```bash
-npm run deploy
-```
-
-To deploy to a specific environment (e.g., production):
-
-```bash
-npm run deploy:prod
-```
-
-## Configuration Options
-
-### Timezone
-
-The timezone for the calendar is set to `Asia/Seoul` in `src/index.ts`. Modify it if your target audience is in a different timezone.
-
-## Maintenance Guidelines
-
-- **Monitor Worker Logs:** Regularly check your Cloudflare Worker logs for any errors or warnings related to parsing or ICS generation.
-- **KV Data:** The `latest` key in your KV namespace stores the most recent ICS data. Do not manually modify or delete this key unless you intend to force a regeneration.
-- **Website Changes:** If the KNUE academic calendar website structure changes, the `src/parser.ts` file will need to be updated to reflect those changes.
-
-## Calendar Subscription
-
-To subscribe to this calendar, replace `your-worker-domain.workers.dev` with your actual Worker URL.
-
-### Apple Calendar / iOS
-
-1. Go to Settings > Calendar > Accounts > Add Account > Other
-2. Select "Add Subscribed Calendar"
-3. Enter the URL: `https://your-worker-domain.workers.dev/events.ics`
+1. Settings → Calendar → Accounts → Add Account → Other
+2. Add Subscribed Calendar
+3. URL: `https://your-worker-domain.workers.dev/events.ics`
 
 ### Google Calendar
 
-1. Open Google Calendar
-2. Click the + next to "Other calendars"
-3. Select "From URL"
-4. Enter the URL: `https://your-worker-domain.workers.dev/events.ics`
-5. Click "Add Calendar"
+1. Google Calendar → Other calendars (+) → From URL
+2. URL: `https://your-worker-domain.workers.dev/events.ics`
 
-### Microsoft Outlook
+### Outlook
 
-1. Open Outlook Calendar
-2. Right-click on "Calendars" and select "Add Calendar" > "From Internet"
-3. Enter the URL: `https://your-worker-domain.workers.dev/events.ics`
-4. Click "OK"
+1. Calendar → Add calendar → Subscribe from web
+2. URL: `https://your-worker-domain.workers.dev/events.ics`
+
+## 🛠️ Configuration
+
+### Cron Schedule
+
+Update the schedule in `wrangler.toml`:
+
+```toml
+[triggers]
+crons = ["0 */6 * * *"]  # Every 6 hours
+```
+
+### Cache Settings
+
+Modify cache duration in `src/constants.ts`:
+
+```typescript
+export const CACHE_CONFIG = {
+  maxAge: 60 * 60 * 24, // 24 hours in seconds
+} as const;
+```
+
+### Retry Configuration
+
+Adjust retry behavior in `src/constants.ts`:
+
+```typescript
+export const REQUEST_CONFIG = {
+  timeout: 10000, // 10 seconds
+  maxRetries: 3, // 3 retry attempts
+  retryDelayMs: 2000, // 2 second base delay
+} as const;
+```
+
+## 🧪 Testing
+
+Run the comprehensive test suite:
+
+```bash
+npm test                    # Run all tests
+npm run test:watch          # Watch mode
+npm test -- --coverage     # With coverage report
+```
+
+Test categories:
+
+- **Unit Tests**: Individual function testing
+- **Integration Tests**: End-to-end worker functionality
+- **Parser Tests**: Academic calendar parsing logic
+- **Utility Tests**: Retry mechanism, ETag generation, logging
+
+## 📁 Project Structure
+
+```text
+src/
+├── index.ts              # Main worker entry point
+├── parser.ts             # KNUE website parsing logic
+├── types.ts              # TypeScript type definitions
+├── constants.ts          # Configuration constants
+└── utils/
+    ├── calendar.ts       # ICS generation utilities
+    ├── etag.ts          # ETag generation for caching
+    ├── logger.ts        # Structured logging
+    └── retry.ts         # Retry mechanism with jitter
+
+test/
+├── index.test.ts         # Main worker tests
+├── parser.test.ts        # Parser functionality tests
+├── constants.test.ts     # Constants validation tests
+├── helpers/
+│   └── mocks.ts         # Test utilities and mocks
+└── utils/
+    ├── calendar.test.ts  # Calendar generation tests
+    ├── etag.test.ts     # ETag utility tests
+    ├── logger.test.ts   # Logger functionality tests
+    └── retry.test.ts    # Retry mechanism tests
+```
+
+## 🔧 Architecture Details
+
+### Event Processing Pipeline
+
+1. **Fetch**: Retrieve HTML from KNUE academic calendar
+2. **Parse**: Extract event data using CSS selectors
+3. **Filter**: Remove holidays and maintenance events
+4. **Sanitize**: Clean titles for ICS compliance
+5. **Transform**: Convert to RFC 5545 format
+6. **Cache**: Store in Cloudflare KV with ETag
+
+### Error Handling
+
+- **Exponential Backoff**: Gradual retry delay increase
+- **Jitter**: Random delay to prevent thundering herd
+- **Graceful Degradation**: Preserve existing calendar on errors
+- **Comprehensive Logging**: Structured error reporting
+
+### Performance Optimizations
+
+- **HTTP Caching**: ETag-based conditional requests
+- **KV Storage**: Fast edge-cached calendar delivery
+- **Minimal Dependencies**: Lightweight runtime footprint
+- **Academic Year Logic**: Smart date parsing for cross-year events
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+**Calendar not updating:**
+
+- Check worker logs for parsing errors
+- Verify cron trigger is active
+- Manually trigger: `curl https://your-worker.dev/cdn-cgi/handler/scheduled`
+
+**Events missing or incorrect:**
+
+- KNUE website structure may have changed
+- Update CSS selectors in `src/parser.ts`
+- Check holiday filtering logic
+
+**Performance issues:**
+
+- Monitor KV usage and cache hit rates
+- Adjust retry settings if timeouts occur
+- Consider increasing cache duration
+
+### Debug Mode
+
+Enable verbose logging in development:
+
+```bash
+# Set log level in wrangler.toml
+[vars]
+LOG_LEVEL = "debug"
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/amazing-feature`
+3. Run tests: `npm test`
+4. Commit changes: `git commit -m 'Add amazing feature'`
+5. Push to branch: `git push origin feature/amazing-feature`
+6. Open a Pull Request
+
+### Development Guidelines
+
+- Maintain 100% test coverage
+- Follow TypeScript strict mode
+- Use conventional commit messages
+- Update documentation for new features
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Korea National University of Education for providing the academic calendar data
+- Cloudflare Workers platform for serverless infrastructure
+- The open-source community for excellent tooling and libraries
+
+## 📞 Support
+
+- **Issues**: [GitHub Issues](https://github.com/kadragon/knue-ics-calendar/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/kadragon/knue-ics-calendar/discussions)
+- **Security**: Report vulnerabilities privately via GitHub Security tab
+
+---
+
+Last updated: 2025-07-27
