@@ -1,6 +1,8 @@
-import { ICalCalendar } from "ical-generator";
 import { getEventsFromSite } from "./parser";
 import { log } from "./utils/logger";
+import { createCalendarWithEvents } from "./utils/calendar";
+import { Env } from "./types";
+import { CACHE_CONFIG } from "./constants";
 
 export default {
   async fetch(req: Request, env: Env) {
@@ -12,8 +14,13 @@ export default {
           log("warn", "ICS not available in KV");
           return new Response("Calendar not available yet", { status: 503 });
         }
-        // Generate a simple ETag (could use hash function for production)
-        const etag = `"${ics.length.toString(16)}"`;
+        // Generate content-based ETag using hash
+        const encoder = new TextEncoder();
+        const data = encoder.encode(ics);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+        const etag = `"${hashHex.substring(0, 16)}"`;
 
         // Check If-None-Match header
         const ifNoneMatch = req.headers.get("if-none-match");
@@ -23,10 +30,51 @@ export default {
         }
 
         log("info", "Serving ICS file");
+        
+        // Check if client accepts gzip compression
+        const acceptEncoding = req.headers.get("accept-encoding") || "";
+        const supportsGzip = acceptEncoding.includes("gzip");
+        
+        if (supportsGzip && ics.length > 1024) { // Only compress if >1KB
+          const encoder = new TextEncoder();
+          const data = encoder.encode(ics);
+          const compressed = new CompressionStream("gzip");
+          const writer = compressed.writable.getWriter();
+          const reader = compressed.readable.getReader();
+          
+          writer.write(data);
+          writer.close();
+          
+          const chunks: Uint8Array[] = [];
+          let done = false;
+          while (!done) {
+            const { value, done: readerDone } = await reader.read();
+            done = readerDone;
+            if (value) chunks.push(value);
+          }
+          
+          const compressedData = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+          let offset = 0;
+          for (const chunk of chunks) {
+            compressedData.set(chunk, offset);
+            offset += chunk.length;
+          }
+          
+          return new Response(compressedData, {
+            headers: {
+              "content-type": "text/calendar; charset=utf-8",
+              "cache-control": `public, max-age=${CACHE_CONFIG.maxAge}`,
+              "content-disposition": 'attachment; filename="events.ics"',
+              "content-encoding": "gzip",
+              etag: etag,
+            },
+          });
+        }
+        
         return new Response(ics, {
           headers: {
             "content-type": "text/calendar; charset=utf-8",
-            "cache-control": "public, max-age=300",
+            "cache-control": `public, max-age=${CACHE_CONFIG.maxAge}`,
             "content-disposition": 'attachment; filename="events.ics"',
             etag: etag,
           },
@@ -54,44 +102,7 @@ export default {
         return; // Do not overwrite existing ICS if no events are found
       }
 
-      const calendar = new ICalCalendar({
-        name: "한국교원대학교 학사 일정",
-        prodId: "-//Github@kadragon//haksaICS//KO",
-        timezone: "Asia/Seoul",
-        url: "https://github.com/kadragon/knue-ics-calendar",
-      });
-
-      events.forEach((event) => {
-        const diffTime = Math.abs(event.end.getTime() - event.start.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-        if (diffDays > 3) {
-          // Create start event
-          calendar.createEvent({
-            start: event.start,
-            end: event.start, // Event ends on the same day
-            summary: `${event.title} (~${event.end.getMonth() + 1}. ${event.end
-              .getDate()
-              .toString()}.)`,
-            allDay: true,
-          });
-
-          // Create end event
-          calendar.createEvent({
-            start: event.end,
-            end: event.end, // Event ends on the same day
-            summary: event.title,
-            allDay: true,
-          });
-        } else {
-          calendar.createEvent({
-            start: event.start,
-            end: event.end,
-            summary: event.title,
-            allDay: true,
-          });
-        }
-      });
+      const calendar = createCalendarWithEvents(events);
 
       const icsString = calendar.toString();
       await env.KNUE_CAL_KV.put("latest", icsString);
@@ -105,6 +116,3 @@ export default {
   },
 };
 
-interface Env {
-  KNUE_CAL_KV: KVNamespace;
-}

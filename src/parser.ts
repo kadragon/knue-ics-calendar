@@ -1,28 +1,9 @@
 import axios from "axios";
 import * as cheerio from "cheerio";
 import { log } from "./utils/logger";
-
-interface Event {
-  start: Date;
-  end: Date;
-  title: string;
-  url?: string;
-}
-
-const HOLIDAYS = [
-  "개천절",
-  "추석",
-  "설날",
-  "한글날",
-  "성탄절",
-  "신정",
-  "어린이날",
-  "부처님",
-  "선거일",
-  "광복절",
-  "현충일",
-  "근로자의",
-];
+import { withRetry } from "./utils/retry";
+import { Event } from "./types";
+import { HOLIDAYS, REQUEST_CONFIG } from "./constants";
 
 /**
  * 날짜 텍스트를 파싱하여 ISO 형식의 날짜 문자열로 변환합니다.
@@ -61,7 +42,15 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
 
   try {
     log("info", `Fetching events from ${url}`);
-    const { data } = await axios.get(url);
+    const { data } = await withRetry(
+      () => axios.get(url, {
+        timeout: REQUEST_CONFIG.timeout,
+        headers: {
+          'User-Agent': REQUEST_CONFIG.userAgent
+        }
+      }),
+      { maxRetries: REQUEST_CONFIG.maxRetries, delayMs: REQUEST_CONFIG.retryDelayMs }
+    );
     const $ = cheerio.load(data);
     const events: Event[] = [];
 
@@ -106,9 +95,10 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     });
     log("info", `Successfully parsed ${events.length} events`);
     return events;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
     log("error", "Error parsing academic calendar:", {
-      error: error.message,
+      error: message,
       url,
     });
     return [];
