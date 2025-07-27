@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import worker from '../src/index';
+import type { Env } from '../src/types';
 import { mockEnv, createMockRequest, MockKVNamespace } from './helpers/mocks';
 
 // Mock the parser module
@@ -97,9 +98,13 @@ describe('Main Worker Handler', () => {
       // Mock KV to throw error
       const errorEnv = {
         KNUE_CAL_KV: {
-          get: vi.fn().mockRejectedValue(new Error('KV Error'))
+          get: vi.fn().mockRejectedValue(new Error('KV Error')),
+          put: vi.fn(),
+          delete: vi.fn(),
+          list: vi.fn(),
+          getWithMetadata: vi.fn()
         }
-      };
+      } as Env;
       
       const request = createMockRequest('https://example.com/calendar.ics');
       const response = await worker.fetch(request, errorEnv);
@@ -127,7 +132,7 @@ describe('Main Worker Handler', () => {
       await kvStore.put('latest', existingIcs);
       
       // Mock parser to return empty events
-      const { getEventsFromSite } = await import('../src/parser');
+      const { getEventsFromSite } = await import('../src/parser.js');
       vi.mocked(getEventsFromSite).mockResolvedValueOnce([]);
       
       const mockController = {} as ScheduledController;
@@ -139,7 +144,7 @@ describe('Main Worker Handler', () => {
 
     it('should handle parser errors gracefully', async () => {
       // Mock parser to throw error
-      const { getEventsFromSite } = await import('../src/parser');
+      const { getEventsFromSite } = await import('../src/parser.js');
       vi.mocked(getEventsFromSite).mockRejectedValueOnce(new Error('Parser error'));
       
       const mockController = {} as ScheduledController;
