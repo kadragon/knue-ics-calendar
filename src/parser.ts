@@ -43,19 +43,34 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
   try {
     log("info", `Fetching events from ${url}`);
     const { data } = await withRetry(
-      () => axios.get(url, {
-        timeout: REQUEST_CONFIG.timeout,
-        headers: {
-          'User-Agent': REQUEST_CONFIG.userAgent
-        }
-      }),
-      { maxRetries: REQUEST_CONFIG.maxRetries, delayMs: REQUEST_CONFIG.retryDelayMs }
+      () =>
+        axios.get(url, {
+          timeout: REQUEST_CONFIG.timeout,
+          headers: {
+            "User-Agent": REQUEST_CONFIG.userAgent,
+          },
+        }),
+      {
+        maxRetries: REQUEST_CONFIG.maxRetries,
+        delayMs: REQUEST_CONFIG.retryDelayMs,
+      }
     );
     const $ = cheerio.load(data);
     const events: Event[] = [];
 
     $("table.more_year tbody tr").each(function () {
-      const title = $(this).find(".more_link").text().trim();
+      let title = $(this).find(".more_link").text().trim();
+
+      // Clean up title for ICS compatibility
+      title = title.replace(/[,]/g, " "); // Replace commas with spaces
+      title = title.replace(/\s+/g, " "); // Replace multiple spaces with single space
+      title = title.replace(/학년도 /g, "-"); // Shorten academic year
+      title = title.trim();
+
+      // Truncate title if still too long (ICS apps may have issues with long titles)
+      if (title.length > 45) {
+        title = title.substring(0, 42) + "...";
+      }
 
       if (title.includes("수업보강") || isHoliday(title)) return;
 

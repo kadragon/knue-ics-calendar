@@ -69,24 +69,9 @@ describe('Main Worker Handler', () => {
       expect(secondResponse.status).toBe(304);
     });
 
-    it('should compress large responses when client supports gzip', async () => {
-      // Create a large ICS content (>1KB)
-      const largeIcsContent = 'BEGIN:VCALENDAR\n' + 'X-LARGE-CONTENT:' + 'A'.repeat(2000) + '\nEND:VCALENDAR';
-      await kvStore.put('latest', largeIcsContent);
-      
-      const request = createMockRequest('https://example.com/calendar.ics', {
-        'accept-encoding': 'gzip, deflate'
-      });
-      
-      const response = await worker.fetch(request, env);
-      
-      expect(response.status).toBe(200);
-      expect(response.headers.get('content-encoding')).toBe('gzip');
-    });
-
-    it('should not compress small responses', async () => {
-      const smallIcsContent = 'BEGIN:VCALENDAR\nEND:VCALENDAR'; // <1KB
-      await kvStore.put('latest', smallIcsContent);
+    it('should serve ICS without compression', async () => {
+      const icsContent = 'BEGIN:VCALENDAR\nEND:VCALENDAR';
+      await kvStore.put('latest', icsContent);
       
       const request = createMockRequest('https://example.com/calendar.ics', {
         'accept-encoding': 'gzip, deflate'
@@ -96,18 +81,7 @@ describe('Main Worker Handler', () => {
       
       expect(response.status).toBe(200);
       expect(response.headers.get('content-encoding')).toBeNull();
-    });
-
-    it('should not compress when client does not support gzip', async () => {
-      const largeIcsContent = 'BEGIN:VCALENDAR\n' + 'X-LARGE-CONTENT:' + 'A'.repeat(2000) + '\nEND:VCALENDAR';
-      await kvStore.put('latest', largeIcsContent);
-      
-      const request = createMockRequest('https://example.com/calendar.ics');
-      
-      const response = await worker.fetch(request, env);
-      
-      expect(response.status).toBe(200);
-      expect(response.headers.get('content-encoding')).toBeNull();
+      expect(response.headers.get('content-type')).toBe('text/calendar; charset=utf-8');
     });
 
     it('should return 404 for non-ICS paths', async () => {

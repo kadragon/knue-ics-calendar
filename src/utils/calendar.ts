@@ -14,9 +14,12 @@ export function createCalendarWithEvents(events: Event[]): ICalCalendar {
 
     if (diffDays > 3) {
       // Create start event
+      const startEventEnd = new Date(event.start);
+      startEventEnd.setDate(startEventEnd.getDate() + 1);
+      
       calendar.createEvent({
         start: event.start,
-        end: event.start, // Event ends on the same day
+        end: startEventEnd,
         summary: `${event.title} (~${event.end.getMonth() + 1}. ${event.end
           .getDate()
           .toString()}.)`,
@@ -24,16 +27,23 @@ export function createCalendarWithEvents(events: Event[]): ICalCalendar {
       });
 
       // Create end event
+      const endEventEnd = new Date(event.end);
+      endEventEnd.setDate(endEventEnd.getDate() + 1);
+      
       calendar.createEvent({
         start: event.end,
-        end: event.end, // Event ends on the same day
+        end: endEventEnd,
         summary: event.title,
         allDay: true,
       });
     } else {
+      // For all-day events, end date should be the day after
+      const eventEnd = new Date(event.end);
+      eventEnd.setDate(eventEnd.getDate() + 1);
+      
       calendar.createEvent({
         start: event.start,
-        end: event.end,
+        end: eventEnd,
         summary: event.title,
         allDay: true,
       });

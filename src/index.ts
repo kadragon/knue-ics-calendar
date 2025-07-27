@@ -31,46 +31,6 @@ export default {
 
         log("info", "Serving ICS file");
         
-        // Check if client accepts gzip compression
-        const acceptEncoding = req.headers.get("accept-encoding") || "";
-        const supportsGzip = acceptEncoding.includes("gzip");
-        
-        if (supportsGzip && ics.length > 1024) { // Only compress if >1KB
-          const encoder = new TextEncoder();
-          const data = encoder.encode(ics);
-          const compressed = new CompressionStream("gzip");
-          const writer = compressed.writable.getWriter();
-          const reader = compressed.readable.getReader();
-          
-          writer.write(data);
-          writer.close();
-          
-          const chunks: Uint8Array[] = [];
-          let done = false;
-          while (!done) {
-            const { value, done: readerDone } = await reader.read();
-            done = readerDone;
-            if (value) chunks.push(value);
-          }
-          
-          const compressedData = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
-          let offset = 0;
-          for (const chunk of chunks) {
-            compressedData.set(chunk, offset);
-            offset += chunk.length;
-          }
-          
-          return new Response(compressedData, {
-            headers: {
-              "content-type": "text/calendar; charset=utf-8",
-              "cache-control": `public, max-age=${CACHE_CONFIG.maxAge}`,
-              "content-disposition": 'attachment; filename="events.ics"',
-              "content-encoding": "gzip",
-              etag: etag,
-            },
-          });
-        }
-        
         return new Response(ics, {
           headers: {
             "content-type": "text/calendar; charset=utf-8",
