@@ -13,6 +13,10 @@ export function createCalendarWithEvents(events: Event[]): ICalCalendar {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     if (diffDays > 3) {
+      // Format dates for split event summaries
+      const startDateFormat = `${event.start.getMonth() + 1}. ${event.start.getDate().toString()}`;
+      const endDateFormat = `${event.end.getMonth() + 1}. ${event.end.getDate().toString()}`;
+
       // Create start event
       const startEventEnd = new Date(event.start);
       startEventEnd.setDate(startEventEnd.getDate() + 1);
@@ -20,9 +24,7 @@ export function createCalendarWithEvents(events: Event[]): ICalCalendar {
       calendar.createEvent({
         start: event.start,
         end: startEventEnd,
-        summary: `${event.title} (~${event.end.getMonth() + 1}. ${event.end
-          .getDate()
-          .toString()}.)`,
+        summary: `${event.title} 시작 (~${endDateFormat}.)`,
         allDay: true,
       });
 
@@ -33,7 +35,7 @@ export function createCalendarWithEvents(events: Event[]): ICalCalendar {
       calendar.createEvent({
         start: event.end,
         end: endEventEnd,
-        summary: event.title,
+        summary: `${event.title} 종료 (${startDateFormat}.~)`,
         allDay: true,
       });
     } else {

@@ -35,9 +35,8 @@ describe('Calendar Utility', () => {
     const startEvent = events[0];
     const endEvent = events[1];
     
-    expect(startEvent.summary()).toContain('여름방학');
-    expect(startEvent.summary()).toContain('8. 30'); // End date in summary
-    expect(endEvent.summary()).toBe('여름방학');
+    expect(startEvent.summary()).toBe('여름방학 시작 (~8. 30.)');
+    expect(endEvent.summary()).toBe('여름방학 종료 (6. 20.~)');
     
     // Both should be all-day events
     expect(startEvent.allDay()).toBe(true);
@@ -91,6 +90,9 @@ describe('Calendar Utility', () => {
     const events = calendar.events();
     
     const startEvent = events[0];
-    expect(startEvent.summary()).toBe('테스트 기간 (~8. 15.)');
+    expect(startEvent.summary()).toBe('테스트 기간 시작 (~8. 15.)');
+    
+    const endEvent = events[1];
+    expect(endEvent.summary()).toBe('테스트 기간 종료 (3. 1.~)');
   });
 });
