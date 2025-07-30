@@ -20,7 +20,7 @@ export function createCalendarWithEvents(events: Event[]): ICalCalendar {
       calendar.createEvent({
         start: event.start,
         end: startEventEnd,
-        summary: `${event.title} (~${event.end.getMonth() + 1}. ${event.end
+        summary: `${event.title} 시작 (~${event.end.getMonth() + 1}. ${event.end
           .getDate()
           .toString()}.)`,
         allDay: true,
@@ -33,7 +33,9 @@ export function createCalendarWithEvents(events: Event[]): ICalCalendar {
       calendar.createEvent({
         start: event.end,
         end: endEventEnd,
-        summary: event.title,
+        summary: `${event.title} 종료 (${event.start.getMonth() + 1}. ${event.start
+          .getDate()
+          .toString()}.~)`,
         allDay: true,
       });
     } else {
