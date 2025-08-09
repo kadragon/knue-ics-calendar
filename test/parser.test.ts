@@ -1,22 +1,23 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import axios from 'axios';
 import { getEventsFromSite } from '../src/parser';
 import { mockHtmlResponse } from './helpers/mocks';
 
-vi.mock('axios');
-const mockedAxios = vi.mocked(axios);
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  vi.restoreAllMocks();
+  fetchMock.mockReset();
+  // @ts-ignore
+  vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe('Parser', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   it('should parse events from HTML response', async () => {
-    mockedAxios.get.mockResolvedValue({ data: mockHtmlResponse });
+    fetchMock.mockResolvedValue(new Response(mockHtmlResponse));
 
     const events = await getEventsFromSite(2024);
 
@@ -42,8 +43,8 @@ describe('Parser', () => {
         </tbody>
       </table>
     `;
-    
-    mockedAxios.get.mockResolvedValue({ data: htmlWithHoliday });
+
+    fetchMock.mockResolvedValue(new Response(htmlWithHoliday));
 
     const events = await getEventsFromSite(2024);
 
@@ -68,8 +69,8 @@ describe('Parser', () => {
         </tbody>
       </table>
     `;
-    
-    mockedAxios.get.mockResolvedValue({ data: htmlWithMakeup });
+
+    fetchMock.mockResolvedValue(new Response(htmlWithMakeup));
 
     const events = await getEventsFromSite(2024);
 
@@ -78,7 +79,7 @@ describe('Parser', () => {
   });
 
   it('should handle events with end dates', async () => {
-    mockedAxios.get.mockResolvedValue({ data: mockHtmlResponse });
+    fetchMock.mockResolvedValue(new Response(mockHtmlResponse));
 
     const events = await getEventsFromSite(2024);
     const midtermEvent = events.find(e => e.title === '중간고사');
@@ -89,7 +90,7 @@ describe('Parser', () => {
   });
 
   it('should handle events without end dates', async () => {
-    mockedAxios.get.mockResolvedValue({ data: mockHtmlResponse });
+    fetchMock.mockResolvedValue(new Response(mockHtmlResponse));
 
     const events = await getEventsFromSite(2024);
     const startEvent = events.find(e => e.title === '개강일');
@@ -116,8 +117,8 @@ describe('Parser', () => {
         </tbody>
       </table>
     `;
-    
-    mockedAxios.get.mockResolvedValue({ data: htmlCrossYear });
+
+    fetchMock.mockResolvedValue(new Response(htmlCrossYear));
 
     const events = await getEventsFromSite(2024);
 
@@ -131,12 +132,12 @@ describe('Parser', () => {
   });
 
   it('should return empty array on network error', async () => {
-    mockedAxios.get.mockRejectedValue(new Error('Network error'));
+    fetchMock.mockRejectedValue(new Error('Network error'));
 
     const events = await getEventsFromSite(2024);
 
     expect(events).toEqual([]);
-    expect(mockedAxios.get).toHaveBeenCalledTimes(3); // Should retry 3 times
+    expect(fetchMock).toHaveBeenCalledTimes(3); // Should retry 3 times
   }, 10000); // 10 second timeout
 
   it('should skip events with missing start date', async () => {
@@ -156,8 +157,8 @@ describe('Parser', () => {
         </tbody>
       </table>
     `;
-    
-    mockedAxios.get.mockResolvedValue({ data: htmlMissingDate });
+
+    fetchMock.mockResolvedValue(new Response(htmlMissingDate));
 
     const events = await getEventsFromSite(2024);
 
@@ -167,8 +168,8 @@ describe('Parser', () => {
 
   it('should handle malformed HTML gracefully', async () => {
     const malformedHtml = '<div>Not a table</div>';
-    
-    mockedAxios.get.mockResolvedValue({ data: malformedHtml });
+
+    fetchMock.mockResolvedValue(new Response(malformedHtml));
 
     const events = await getEventsFromSite(2024);
 
@@ -177,14 +178,14 @@ describe('Parser', () => {
 
   it('should use retry mechanism on failure', async () => {
     // First two calls fail, third succeeds
-    mockedAxios.get
+    fetchMock
       .mockRejectedValueOnce(new Error('Network error'))
       .mockRejectedValueOnce(new Error('Timeout'))
-      .mockResolvedValue({ data: mockHtmlResponse });
+      .mockResolvedValue(new Response(mockHtmlResponse));
 
     const events = await getEventsFromSite(2024);
 
-    expect(mockedAxios.get).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(events).toHaveLength(2);
   }, 10000); // 10 second timeout
 });
