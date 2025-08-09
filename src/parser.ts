@@ -1,5 +1,3 @@
-import axios from "axios";
-import * as cheerio from "cheerio";
 import { log } from "./utils/logger";
 import { withRetry } from "./utils/retry";
 import { Event } from "./types";
@@ -12,13 +10,13 @@ import { HOLIDAYS, REQUEST_CONFIG } from "./constants";
  * @returns {string | null} ISO 형식의 날짜 문자열 ('YYYY-MM-DD') 또는 파싱 실패 시 null.
  */
 const parseDate = (dateText: string, currentYear: number): string | null => {
-  const dateParts = dateText.match(/\d{1,2}/g); // 최대 두 자리 숫자만 매칭
+  const dateParts = dateText.match(/\d{1,2}/g);
   if (!dateParts || dateParts.length < 2) {
     log("warn", "Could not parse date from text", { dateText });
     return null;
   }
   const [month, day] = dateParts.map((num) => num.padStart(2, "0"));
-  const year = Number(currentYear) + (Number(month) >= 3 ? 0 : 1); // 학사연도 기준 3월 이전이면 다음 해
+  const year = Number(currentYear) + (Number(month) >= 3 ? 0 : 1);
   return `${year}-${month}-${day}`;
 };
 
@@ -36,83 +34,88 @@ const isHoliday = (title: string): boolean =>
  * @returns {Promise<Event[]>} 학사 일정을 담은 객체 배열.
  */
 export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
-  // Use mock data in development mode
-
   const url = `https://www.knue.ac.kr/www/selectSchdleWebList.do?key=542&searchY=${currentYear}&searchM=3`; // Start from March for academic year
 
   try {
     log("info", `Fetching events from ${url}`);
-    const { data } = await withRetry(
+    const html = await withRetry(
       () =>
-        axios.get(url, {
-          timeout: REQUEST_CONFIG.timeout,
+        fetch(url, {
           headers: {
             "User-Agent": REQUEST_CONFIG.userAgent,
           },
+        }).then((res) => {
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          return res.text();
         }),
       {
         maxRetries: REQUEST_CONFIG.maxRetries,
         delayMs: REQUEST_CONFIG.retryDelayMs,
       }
     );
-    const $ = cheerio.load(data);
-    const events: Event[] = [];
 
-    $("table.more_year tbody tr").each(function () {
-      let title = $(this).find(".more_link").text().trim();
+    const events: Event[] = [];
+    const tableMatches = html.match(/<table[^>]*class=["']more_year["'][^>]*>([\s\S]*?)<\/table>/g);
+    if (!tableMatches || tableMatches.length === 0) {
+      log("warn", "No events table found");
+      return events;
+    }
+
+    const allRows: string[] = [];
+    for (const table of tableMatches) {
+      const tbodyMatch = table.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/);
+      if (tbodyMatch) {
+        const rows = tbodyMatch[1].match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+        allRows.push(...rows);
+      }
+    }
+
+    for (const row of allRows) {
+      const titleMatch = row.match(/<td[^>]*class=["']more_link["'][^>]*>([\s\S]*?)<\/td>/);
+      const startMatch = row.match(/<td[^>]*class=["']start["'][^>]*>([\s\S]*?)<\/td>/);
+      const endMatch = row.match(/<td[^>]*class=["']end["'][^>]*>([\s\S]*?)<\/td>/);
+
+      let title = titleMatch ? titleMatch[1].trim() : "";
 
       // Clean up title for ICS compatibility
-      // RFC 5545 specifies that commas, semicolons, and backslashes should be escaped in TEXT values
-      // However, some calendar apps have parsing issues with escaped characters
-      // Replacing commas with spaces provides better compatibility across different clients
-      title = title.replace(/[,]/g, " "); // Replace commas to avoid escaping issues
-      title = title.replace(/\s+/g, " "); // Normalize whitespace for cleaner display
-      title = title.replace(/학년도 /g, "-"); // Shorten academic year format for brevity
+      title = title.replace(/[,]/g, " ");
+      title = title.replace(/\s+/g, " ");
+      title = title.replace(/학년도 /g, "-");
       title = title.trim();
 
-      // Limit title length to prevent line wrapping issues in ICS format
-      // RFC 5545 allows line folding, but some calendar apps don't handle it well
-      // Keeping titles under 45 characters ensures better cross-platform compatibility
       if (title.length > 45) {
         title = title.substring(0, 42) + "...";
       }
 
-      if (title.includes("수업보강") || isHoliday(title)) return;
+      if (!title || title.includes("수업보강") || isHoliday(title)) continue;
 
-      const startText = $(this)
-        .find(".start")
-        .text()
-        .replace(/\s+/g, "")
-        .trim();
+      const startText = startMatch
+        ? startMatch[1].replace(/[^0-9.-]/g, "").trim()
+        : "";
       if (!startText) {
         log("warn", "Skipping event due to missing start date", { title });
-        return;
+        continue;
       }
 
-      let endText = $(this)
-        .find(".end")
-        .text()
-        .replace(/\s+/g, "")
-        .replace("-", "")
-        .trim();
+      let endText = endMatch
+        ? endMatch[1].replace(/[^0-9.-]/g, "").replace("-", "").trim()
+        : "";
       if (!endText) endText = startText;
 
       const startIso = parseDate(startText, currentYear);
-      if (!startIso) {
-        // 날짜 파싱 실패 시 해당 이벤트 건너뜀
-        return;
-      }
+      if (!startIso) continue;
 
       let endIso = parseDate(endText, currentYear);
-      if (!endIso) {
-        endIso = startIso; // 종료일이 없거나 파싱 실패 시 시작일과 동일하게 설정
-      }
+      if (!endIso) endIso = startIso;
 
       const startDate = new Date(startIso);
       const endDate = new Date(endIso);
 
       events.push({ start: startDate, end: endDate, title });
-    });
+    }
+
     log("info", `Successfully parsed ${events.length} events`);
     return events;
   } catch (error: unknown) {
@@ -124,3 +127,4 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     return [];
   }
 }
+
