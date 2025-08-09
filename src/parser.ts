@@ -92,7 +92,7 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
       if (!title || title.includes("수업보강") || isHoliday(title)) continue;
 
       const startText = startMatch
-        ? startMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, "").trim()
+        ? startMatch[1].replace(/[^0-9.-]/g, "").trim()
         : "";
       if (!startText) {
         log("warn", "Skipping event due to missing start date", { title });
@@ -100,7 +100,7 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
       }
 
       let endText = endMatch
-        ? endMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, "").replace("-", "").trim()
+        ? endMatch[1].replace(/[^0-9.-]/g, "").replace("-", "").trim()
         : "";
       if (!endText) endText = startText;
 
