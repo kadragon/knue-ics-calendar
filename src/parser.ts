@@ -57,15 +57,22 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     );
 
     const events: Event[] = [];
-    const tableMatch = html.match(/<table[^>]*class=["']more_year["'][^>]*>([\s\S]*?)<\/table>/);
-    if (!tableMatch) {
+    const tableMatches = html.match(/<table[^>]*class=["']more_year["'][^>]*>([\s\S]*?)<\/table>/g);
+    if (!tableMatches || tableMatches.length === 0) {
       log("warn", "No events table found");
       return events;
     }
 
-    const rows = tableMatch[1].match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+    const allRows: string[] = [];
+    for (const table of tableMatches) {
+      const tbodyMatch = table.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/);
+      if (tbodyMatch) {
+        const rows = tbodyMatch[1].match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+        allRows.push(...rows);
+      }
+    }
 
-    for (const row of rows) {
+    for (const row of allRows) {
       const titleMatch = row.match(/<td[^>]*class=["']more_link["'][^>]*>([\s\S]*?)<\/td>/);
       const startMatch = row.match(/<td[^>]*class=["']start["'][^>]*>([\s\S]*?)<\/td>/);
       const endMatch = row.match(/<td[^>]*class=["']end["'][^>]*>([\s\S]*?)<\/td>/);
@@ -85,7 +92,7 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
       if (!title || title.includes("수업보강") || isHoliday(title)) continue;
 
       const startText = startMatch
-        ? startMatch[1].replace(/\s+/g, "").trim()
+        ? startMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, "").trim()
         : "";
       if (!startText) {
         log("warn", "Skipping event due to missing start date", { title });
@@ -93,7 +100,7 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
       }
 
       let endText = endMatch
-        ? endMatch[1].replace(/\s+/g, "").replace("-", "").trim()
+        ? endMatch[1].replace(/<[^>]*>/g, "").replace(/\s+/g, "").replace("-", "").trim()
         : "";
       if (!endText) endText = startText;
 
