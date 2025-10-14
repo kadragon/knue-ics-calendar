@@ -187,4 +187,94 @@ describe('Parser', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(events).toHaveLength(2);
   }, 10000); // 10 second timeout
+
+  it('should handle events with missing title gracefully', async () => {
+    const htmlMissingTitle = `
+      <table class="more_year">
+        <tbody>
+          <tr>
+            <td class="start">3.1</td>
+            <td class="end"></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    fetchMock.mockResolvedValue(new Response(htmlMissingTitle));
+
+    const events = await getEventsFromSite(2024);
+
+    expect(events).toHaveLength(0);
+  });
+
+  it('should truncate long titles', async () => {
+    const longTitle = 'A'.repeat(50); // Longer than 45 chars
+    const htmlLongTitle = `
+      <table class="more_year">
+        <tbody>
+          <tr>
+            <td class="more_link">${longTitle}</td>
+            <td class="start">3.1</td>
+            <td class="end"></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    fetchMock.mockResolvedValue(new Response(htmlLongTitle));
+
+    const events = await getEventsFromSite(2024);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].title).toBe(longTitle.substring(0, 42) + '...');
+  });
+
+  it('should handle events with missing start date gracefully', async () => {
+    const htmlMissingStart = `
+      <table class="more_year">
+        <tbody>
+          <tr>
+            <td class="more_link">이벤트</td>
+            <td class="end">3.2</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    fetchMock.mockResolvedValue(new Response(htmlMissingStart));
+
+    const events = await getEventsFromSite(2024);
+
+    expect(events).toHaveLength(0);
+  });
+
+  it('should handle events with missing end date gracefully', async () => {
+    const htmlMissingEnd = `
+      <table class="more_year">
+        <tbody>
+          <tr>
+            <td class="more_link">이벤트</td>
+            <td class="start">3.1</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    fetchMock.mockResolvedValue(new Response(htmlMissingEnd));
+
+    const events = await getEventsFromSite(2024);
+
+    expect(events).toHaveLength(1);
+    expect(events[0].title).toBe('이벤트');
+    expect(events[0].start).toEqual(new Date('2024-03-01'));
+    expect(events[0].end).toEqual(new Date('2024-03-01'));
+  });
+
+  it('should handle non-Error network exceptions', async () => {
+    fetchMock.mockRejectedValue('String network error');
+
+    const events = await getEventsFromSite(2024);
+
+    expect(events).toEqual([]);
+  });
 });
