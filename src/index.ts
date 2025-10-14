@@ -48,9 +48,7 @@ export default {
             return new Response(null, { status: 304, headers: responseHeaders });
           }
           log("info", "Serving ICS file from cache");
-          return new Response(cachedResponse.body, {
-            headers: cachedHeaders,
-          });
+          return cachedResponse;
         }
 
         const { value: ics, metadata } =
@@ -68,9 +66,13 @@ export default {
           etag = await generateEtag(ics);
         }
 
-        const lastModified = metadata?.updatedAt
-          ? new Date(metadata.updatedAt).toUTCString()
-          : new Date().toUTCString();
+        let lastModified: string;
+        if (metadata?.updatedAt) {
+          lastModified = new Date(metadata.updatedAt).toUTCString();
+        } else {
+          log("warn", "KV metadata missing 'updatedAt', using current time as Last-Modified fallback.");
+          lastModified = new Date().toUTCString();
+        }
 
         const icsResponse = buildIcsResponse(ics, etag, lastModified);
         await caches.default.put(cacheRequest, icsResponse.clone());
