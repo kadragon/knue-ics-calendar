@@ -1,6 +1,6 @@
 import js from '@eslint/js';
 import tsPlugin from '@typescript-eslint/eslint-plugin';
-import vitestPlugin from 'eslint-plugin-vitest';
+import vitest from '@vitest/eslint-plugin';
 
 const tsFlatRecommended = tsPlugin.configs['flat/recommended'];
 
@@ -30,7 +30,10 @@ export default [
     }
   },
   {
-    ...vitestPlugin.configs.recommended,
-    files: ['tests/**/*.ts']
+    files: ['tests/**/*.ts'],
+    ...vitest.configs.recommended,
+    languageOptions: {
+      ...vitest.configs.env.languageOptions
+    }
   }
 ];
