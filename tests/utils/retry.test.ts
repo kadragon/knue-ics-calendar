@@ -48,17 +48,39 @@ describe('Retry Utility', () => {
   }, 30000);
 
   it('should use exponential backoff', async () => {
-    const mockFn = vi.fn().mockRejectedValue(new Error('fail'));
+    vi.useFakeTimers();
+    const mockFn = vi.fn()
+      .mockRejectedValueOnce(new Error('fail'))
+      .mockRejectedValueOnce(new Error('fail'))
+      .mockResolvedValue('success');
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
 
     const promise = withRetry(mockFn, {
       maxRetries: 3,
-      delayMs: 0,
+      delayMs: 100,
       backoffMultiplier: 2,
       jitterMs: 0
     });
 
-    await expect(promise).rejects.toThrow('fail');
-    expect(mockFn).toHaveBeenCalledTimes(3);
+    try {
+      // First retry waits 100ms before second attempt
+      await vi.advanceTimersByTimeAsync(100);
+      // Second retry waits 200ms before third (successful) attempt
+      await vi.advanceTimersByTimeAsync(200);
+
+      const result = await promise;
+      expect(result).toBe('success');
+      expect(mockFn).toHaveBeenCalledTimes(3);
+
+      const firstDelay = setTimeoutSpy.mock.calls[0]?.[1];
+      const secondDelay = setTimeoutSpy.mock.calls[1]?.[1];
+
+      expect(firstDelay).toBe(100);
+      expect(secondDelay).toBe(200);
+    } finally {
+      vi.useRealTimers();
+      setTimeoutSpy.mockRestore();
+    }
   }, 30000);
 
   it('should handle non-Error thrown values', async () => {
@@ -86,41 +108,55 @@ describe('Retry Utility', () => {
   });
 
   it('should add jitter to prevent thundering herd', async () => {
+    vi.useFakeTimers();
     const mockFn = vi.fn().mockRejectedValue(new Error('fail'));
 
-    // Mock Math.random to return predictable values
     const originalRandom = Math.random;
-    let callCount = 0;
-    Math.random = vi.fn(() => {
-      // Return different values for each call: 0.5, 0.8
-      const values = [0.5, 0.8];
-      return values[callCount++ % values.length];
-    });
+    try {
+      let callCount = 0;
+      Math.random = vi.fn(() => {
+        const values = [0.5, 0.8];
+        return values[callCount++ % values.length];
+      });
 
-    const promise = withRetry(mockFn, {
-      maxRetries: 2,
-      delayMs: 0,
-      jitterMs: 50,
-      backoffMultiplier: 2
-    });
+      const promise = withRetry(mockFn, {
+        maxRetries: 2,
+        delayMs: 0,
+        jitterMs: 50,
+        backoffMultiplier: 2
+      });
 
-    await expect(promise).rejects.toThrow('fail');
-    expect(mockFn).toHaveBeenCalledTimes(2);
+      promise.catch(() => {});
 
-    // Restore original Math.random
-    Math.random = originalRandom;
+      await vi.advanceTimersByTimeAsync(25);
+
+      await expect(promise).rejects.toThrow('fail');
+      expect(mockFn).toHaveBeenCalledTimes(2);
+    } finally {
+      Math.random = originalRandom;
+      vi.useRealTimers();
+    }
   }, 30000);
 
   it('should work without jitter when jitterMs is 0', async () => {
+    vi.useFakeTimers();
     const mockFn = vi.fn().mockRejectedValue(new Error('fail'));
 
-    const promise = withRetry(mockFn, {
-      maxRetries: 2,
-      delayMs: 0,
-      jitterMs: 0
-    });
+    try {
+      const promise = withRetry(mockFn, {
+        maxRetries: 2,
+        delayMs: 0,
+        jitterMs: 0
+      });
 
-    await expect(promise).rejects.toThrow('fail');
-    expect(mockFn).toHaveBeenCalledTimes(2);
+      promise.catch(() => {});
+
+      await vi.runAllTimersAsync();
+
+      await expect(promise).rejects.toThrow('fail');
+      expect(mockFn).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   }, 30000);
 });

@@ -30,17 +30,7 @@ export default [
     }
   },
   {
-    files: ['tests/**/*.ts'],
-    plugins: {
-      vitest: vitestPlugin
-    },
-    languageOptions: {
-      globals: {
-        ...vitestPlugin.environments.env.globals
-      }
-    },
-    rules: {
-      ...vitestPlugin.configs.recommended.rules
-    }
+    ...vitestPlugin.configs.recommended,
+    files: ['tests/**/*.ts']
   }
 ];
