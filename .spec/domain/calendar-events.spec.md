@@ -52,6 +52,7 @@ Each event parsed from HTML MUST provide:
 - Parsing a representative KNUE calendar sample produces at least one `academic` event matching known semester dates.
 - All ICS events pass validation using `ical-generator` internal checks (throws on invalid data).
 - Requests with `If-None-Match` header equal to stored `ETag` respond `304 Not Modified` with empty body.
+- Cached responses MUST include `Content-Type: text/calendar; charset=utf-8`, `Content-Disposition` attachment filename `events.ics`, `Cache-Control: public, max-age=86400`, `ETag`, and `Last-Modified`.
 - When parsing yields zero events, no KV update occurs; the prior `latest` snapshot remains accessible.
 
 ## Verification

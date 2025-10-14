@@ -30,3 +30,5 @@ export const REQUEST_CONFIG = {
 export const CACHE_CONFIG = {
   maxAge: 60 * 60 * 24, // 1 days
 } as const;
+
+export const CACHE_KEY = "https://knue-ics-cache/events.ics";

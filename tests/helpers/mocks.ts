@@ -55,21 +55,74 @@ export const mockHtmlResponse = `
 </html>
 `;
 
+export interface MockKVEntry {
+  value: string;
+  metadata?: Record<string, unknown>;
+}
+
 export class MockKVNamespace {
-  private storage = new Map<string, string>();
+  private storage = new Map<string, MockKVEntry>();
 
   get(key: string): Promise<string | null> {
-    return Promise.resolve(this.storage.get(key) ?? null);
+    const entry = this.storage.get(key);
+    return Promise.resolve(entry ? entry.value : null);
   }
 
-  put(key: string, value: string): Promise<void> {
-    this.storage.set(key, value);
+  async getWithMetadata<T = unknown>(key: string): Promise<
+    KVNamespaceGetWithMetadataResult<string, T>
+  > {
+    const entry = this.storage.get(key);
+    return {
+      value: entry ? entry.value : null,
+      metadata: (entry?.metadata ?? null) as T | null,
+      cacheStatus: entry ? "hit" : "miss",
+    };
+  }
+
+  put(key: string, value: string, options?: { metadata?: Record<string, unknown> }): Promise<void> {
+    this.storage.set(key, { value, metadata: options?.metadata });
     return Promise.resolve();
   }
 
   clear(): void {
     this.storage.clear();
   }
+}
+
+export class MockCache {
+  private store = new Map<string, Response>();
+
+  async match(request: Request): Promise<Response | undefined> {
+    const hit = this.store.get(request.url);
+    return hit ? hit.clone() : undefined;
+  }
+
+  async put(request: Request, response: Response): Promise<void> {
+    this.store.set(request.url, response.clone());
+  }
+
+  clear(): void {
+    this.store.clear();
+  }
+}
+
+export class MockCaches {
+  default = new MockCache();
+}
+
+export function installMockCaches(): { restore(): void } {
+  const globalRef = globalThis as unknown as { caches?: CacheStorage };
+  const backup = globalRef.caches;
+  globalRef.caches = new MockCaches() as unknown as CacheStorage;
+  return {
+    restore() {
+      if (backup) {
+        globalRef.caches = backup;
+      } else {
+        delete globalRef.caches;
+      }
+    },
+  };
 }
 
 export const mockEnv = {

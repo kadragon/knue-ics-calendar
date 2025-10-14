@@ -19,12 +19,18 @@ owner: platform-lead
 ## Triggers
 
 - HTTP endpoint: `GET /events.ics` responds with latest calendar snapshot.
-- Scheduled Cron: `crons = ["0 */6 * * *"]` (update here prior to `wrangler.toml`).
+- Scheduled Cron: `crons = ["0 1 * * *"]` (daily 01:00 Asia/Seoul). Update this spec before modifying `wrangler.toml`.
 
 ## Configuration
 
 - Environment variables:
   - `LOG_LEVEL`: default `info`; allow `debug` only during active troubleshooting.
+- Persistent storage:
+  - A Cloudflare KV namespace (or equivalent durable store) MUST retain the latest generated ICS for cold-start recovery.
+- Edge caching:
+  - Worker MUST serve `/events.ics` via Cloudflare Cache API using a single canonical cache key.
+  - Cached responses MUST include `Cache-Control: public, max-age=86400`, `ETag`, and `Last-Modified`.
+  - On successful cron execution, the Worker MUST warm the cache immediately after persisting the new ICS.
 - Wrangler commands:
   - `npm run build` performs `wrangler deploy --dry-run`.
   - `npm run deploy` pushes to default environment.
@@ -39,8 +45,9 @@ owner: platform-lead
 
 - Deploying with `npm run build` completes without warnings or errors.
 - Cron trigger executes within ±5 minutes of schedule; first run after deploy successfully regenerates ICS.
-- KV reads/writes remain under plan limits (document actual quotas in `.tasks/ops/PROGRESS.md`).
-- HTTP response latency p95 < 200ms for cached KV reads (measured via Worker analytics).
+- Persistent store reads/writes remain under plan limits (document actual quotas in `.tasks/ops/PROGRESS.md`).
+- HTTP response latency p95 < 200ms for cache hits (measured via Worker analytics).
+- 304 responses MUST match the latest cached `ETag`.
 
 ## Verification
 
