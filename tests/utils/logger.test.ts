@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { log } from '../../src/utils/logger';
 
 describe('Logger Utility', () => {
-  let consoleSpy: any;
+  let consoleSpy: MockInstance;
   
   beforeEach(() => {
     vi.useFakeTimers();

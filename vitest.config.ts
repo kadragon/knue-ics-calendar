@@ -7,7 +7,7 @@ export default defineConfig({
     testTimeout: 10000, // 10 seconds default timeout
     coverage: {
       reporter: ['text', 'html'],
-      exclude: ['node_modules/', 'test/']
+      exclude: ['node_modules/', 'tests/']
     }
   },
   resolve: {

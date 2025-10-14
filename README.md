@@ -148,7 +148,7 @@ src/
     ├── logger.ts        # Structured logging
     └── retry.ts         # Retry mechanism with jitter
 
-test/
+tests/
 ├── index.test.ts         # Main worker tests
 ├── parser.test.ts        # Parser functionality tests
 ├── constants.test.ts     # Constants validation tests

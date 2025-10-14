@@ -1,6 +1,14 @@
-export function log(level: 'info' | 'warn' | 'error', message: string, data?: any) {
+type LogLevel = 'info' | 'warn' | 'error';
+type LogData = Record<string, unknown>;
+
+export function log(level: LogLevel, message: string, data?: LogData): void {
   const timestamp = new Date().toISOString();
-  const logData = { timestamp, level, message, ...(data ? { data } : {}) };
+  const logData: Record<string, unknown> = {
+    timestamp,
+    level,
+    message,
+    ...(data ? { data } : {})
+  };
   
   if (level === 'error') {
     console.error(JSON.stringify(logData));

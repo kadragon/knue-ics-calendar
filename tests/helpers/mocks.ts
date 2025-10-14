@@ -58,12 +58,13 @@ export const mockHtmlResponse = `
 export class MockKVNamespace {
   private storage = new Map<string, string>();
 
-  async get(key: string): Promise<string | null> {
-    return this.storage.get(key) || null;
+  get(key: string): Promise<string | null> {
+    return Promise.resolve(this.storage.get(key) ?? null);
   }
 
-  async put(key: string, value: string): Promise<void> {
+  put(key: string, value: string): Promise<void> {
     this.storage.set(key, value);
+    return Promise.resolve();
   }
 
   clear(): void {

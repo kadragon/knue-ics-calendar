@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import worker from '../src/index';
 import type { Env } from '../src/types';
-import { mockEnv, createMockRequest, MockKVNamespace } from './helpers/mocks';
+import { createMockRequest, MockKVNamespace } from './helpers/mocks';
 
 // Mock the parser module
 vi.mock('../src/parser', () => ({
@@ -21,11 +21,11 @@ vi.mock('../src/parser', () => ({
 
 describe('Main Worker Handler', () => {
   let kvStore: MockKVNamespace;
-  let env: any;
+  let env: Env;
 
   beforeEach(() => {
     kvStore = new MockKVNamespace();
-    env = { KNUE_CAL_KV: kvStore };
+    env = { KNUE_CAL_KV: kvStore as unknown as KVNamespace };
     vi.clearAllMocks();
   });
 
@@ -105,10 +105,29 @@ describe('Main Worker Handler', () => {
           getWithMetadata: vi.fn()
         }
       } as Env;
-      
+
       const request = createMockRequest('https://example.com/calendar.ics');
       const response = await worker.fetch(request, errorEnv);
-      
+
+      expect(response.status).toBe(500);
+      expect(await response.text()).toBe('Internal server error');
+    });
+
+    it('should handle non-Error exceptions gracefully', async () => {
+      // Mock KV to throw non-Error
+      const errorEnv = {
+        KNUE_CAL_KV: {
+          get: vi.fn().mockRejectedValue('String error'),
+          put: vi.fn(),
+          delete: vi.fn(),
+          list: vi.fn(),
+          getWithMetadata: vi.fn()
+        }
+      } as Env;
+
+      const request = createMockRequest('https://example.com/calendar.ics');
+      const response = await worker.fetch(request, errorEnv);
+
       expect(response.status).toBe(500);
       expect(await response.text()).toBe('Internal server error');
     });
@@ -146,9 +165,20 @@ describe('Main Worker Handler', () => {
       // Mock parser to throw error
       const { getEventsFromSite } = await import('../src/parser.js');
       vi.mocked(getEventsFromSite).mockRejectedValueOnce(new Error('Parser error'));
-      
+
       const mockController = {} as ScheduledController;
-      
+
+      // Should not throw
+      await expect(worker.scheduled(mockController, env)).resolves.toBeUndefined();
+    });
+
+    it('should handle non-Error parser exceptions gracefully', async () => {
+      // Mock parser to throw non-Error
+      const { getEventsFromSite } = await import('../src/parser.js');
+      vi.mocked(getEventsFromSite).mockRejectedValueOnce('String parser error');
+
+      const mockController = {} as ScheduledController;
+
       // Should not throw
       await expect(worker.scheduled(mockController, env)).resolves.toBeUndefined();
     });
