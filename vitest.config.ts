@@ -5,7 +5,6 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     testTimeout: 10000, // 10 seconds default timeout
-    dangerouslyIgnoreUnhandledErrors: true,
     coverage: {
       reporter: ['text', 'html'],
       exclude: ['node_modules/', 'tests/']

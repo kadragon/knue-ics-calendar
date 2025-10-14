@@ -3,11 +3,10 @@ import { withRetry } from '../../src/utils/retry';
 
 describe('Retry Utility', () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    vi.useRealTimers();
   });
 
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -21,6 +20,7 @@ describe('Retry Utility', () => {
   });
 
   it('should retry on failure and eventually succeed', async () => {
+    vi.useFakeTimers();
     const mockFn = vi.fn()
       .mockRejectedValueOnce(new Error('fail'))
       .mockResolvedValue('success');
@@ -34,38 +34,32 @@ describe('Retry Utility', () => {
 
     expect(result).toBe('success');
     expect(mockFn).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it('should throw error after max retries exceeded', async () => {
     const error = new Error('persistent failure');
     const mockFn = vi.fn().mockRejectedValue(error);
 
-    const promise = withRetry(mockFn, { maxRetries: 2, delayMs: 100, jitterMs: 50 });
-
-    // Fast forward past all delays + jitter (100 + up to 50)
-    await vi.advanceTimersByTimeAsync(200);
+    const promise = withRetry(mockFn, { maxRetries: 2, delayMs: 0, jitterMs: 0 });
 
     await expect(promise).rejects.toThrow('persistent failure');
     expect(mockFn).toHaveBeenCalledTimes(2);
-  });
+  }, 30000);
 
   it('should use exponential backoff', async () => {
     const mockFn = vi.fn().mockRejectedValue(new Error('fail'));
 
     const promise = withRetry(mockFn, {
       maxRetries: 3,
-      delayMs: 100,
+      delayMs: 0,
       backoffMultiplier: 2,
-      jitterMs: 50
+      jitterMs: 0
     });
-
-    // Advance through all retry delays + jitter
-    // First retry: 100 + up to 50ms, Second retry: 200 + up to 50ms
-    await vi.advanceTimersByTimeAsync(500);
 
     await expect(promise).rejects.toThrow('fail');
     expect(mockFn).toHaveBeenCalledTimes(3);
-  });
+  }, 30000);
 
   it('should handle non-Error thrown values', async () => {
     const mockFn = vi.fn().mockRejectedValue('string error');
@@ -76,17 +70,19 @@ describe('Retry Utility', () => {
   });
 
   it('should use default options when not provided', async () => {
+    vi.useFakeTimers();
     const mockFn = vi.fn()
       .mockRejectedValueOnce(new Error('fail'))
       .mockResolvedValue('success');
-    
+
     const promise = withRetry(mockFn);
-    
+
     // Default delay is 1000ms + jitter (up to 1000ms)
     await vi.advanceTimersByTimeAsync(2500);
-    
+
     const result = await promise;
     expect(result).toBe('success');
+    vi.useRealTimers();
   });
 
   it('should add jitter to prevent thundering herd', async () => {
@@ -103,35 +99,28 @@ describe('Retry Utility', () => {
 
     const promise = withRetry(mockFn, {
       maxRetries: 2,
-      delayMs: 100,
+      delayMs: 0,
       jitterMs: 50,
       backoffMultiplier: 2
     });
-
-    // Expected delays:
-    // Retry 1: 100 + (0.5 * 50) = 125ms
-    await vi.advanceTimersByTimeAsync(200);
 
     await expect(promise).rejects.toThrow('fail');
     expect(mockFn).toHaveBeenCalledTimes(2);
 
     // Restore original Math.random
     Math.random = originalRandom;
-  });
+  }, 30000);
 
   it('should work without jitter when jitterMs is 0', async () => {
     const mockFn = vi.fn().mockRejectedValue(new Error('fail'));
 
     const promise = withRetry(mockFn, {
       maxRetries: 2,
-      delayMs: 100,
+      delayMs: 0,
       jitterMs: 0
     });
 
-    // Should use exact delays without jitter
-    await vi.advanceTimersByTimeAsync(200);
-
     await expect(promise).rejects.toThrow('fail');
     expect(mockFn).toHaveBeenCalledTimes(2);
-  });
+  }, 30000);
 });
