@@ -2,13 +2,12 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { getEventsFromSite } from '../src/parser';
 import { mockHtmlResponse } from './helpers/mocks';
 
-const fetchMock = vi.fn();
+const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
   vi.restoreAllMocks();
   fetchMock.mockReset();
-  // @ts-ignore
-  vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
 });
 
 afterEach(() => {

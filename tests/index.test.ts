@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import worker from '../src/index';
 import type { Env } from '../src/types';
-import { mockEnv, createMockRequest, MockKVNamespace } from './helpers/mocks';
+import { createMockRequest, MockKVNamespace } from './helpers/mocks';
 
 // Mock the parser module
 vi.mock('../src/parser', () => ({
@@ -21,11 +21,11 @@ vi.mock('../src/parser', () => ({
 
 describe('Main Worker Handler', () => {
   let kvStore: MockKVNamespace;
-  let env: any;
+  let env: Env;
 
   beforeEach(() => {
     kvStore = new MockKVNamespace();
-    env = { KNUE_CAL_KV: kvStore };
+    env = { KNUE_CAL_KV: kvStore as unknown as KVNamespace };
     vi.clearAllMocks();
   });
 
