@@ -3,6 +3,7 @@ import worker from '../src/index';
 import type { Env } from '../src/types';
 import { createMockRequest, MockKVNamespace, installMockCaches } from './helpers/mocks';
 import { CACHE_KEY } from '../src/constants';
+import { generateEtag } from '../src/utils/etag';
 
 vi.mock('../src/parser', () => ({
   getEventsFromSite: vi.fn().mockResolvedValue([
@@ -53,13 +54,20 @@ describe('Worker Cache Integration', () => {
 
   it('backfills cache from KV when cache miss occurs', async () => {
     const icsContent = 'BEGIN:VCALENDAR\nEND:VCALENDAR';
-    await kv.put('latest', icsContent);
+    const updatedAt = new Date().toISOString();
+    await kv.put('latest', icsContent, {
+      metadata: {
+        updatedAt,
+        etag: '"test-etag"',
+      },
+    });
 
     const request = createMockRequest('https://example.com/events.ics');
     const response = await worker.fetch(request, env);
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe(icsContent);
+    expect(response.headers.get('last-modified')).toBe(new Date(updatedAt).toUTCString());
 
     const warmed = await caches.default.match(new Request(CACHE_KEY));
     expect(warmed).toBeDefined();
@@ -72,5 +80,20 @@ describe('Worker Cache Integration', () => {
 
     const cached = await caches.default.match(new Request(CACHE_KEY));
     expect(cached).toBeDefined();
+  });
+
+  it('handles missing metadata gracefully with fallback', async () => {
+    const icsContent = 'BEGIN:VCALENDAR\nEND:VCALENDAR';
+    // Simulate legacy data without metadata
+    await kv.put('latest', icsContent);
+
+    const request = createMockRequest('https://example.com/events.ics');
+    const response = await worker.fetch(request, env);
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(icsContent);
+    // Should still have a Last-Modified header (fallback to current time)
+    expect(response.headers.get('last-modified')).toBeDefined();
+    expect(response.headers.get('etag')).toBe(await generateEtag(icsContent));
   });
 });

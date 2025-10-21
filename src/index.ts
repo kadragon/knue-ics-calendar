@@ -63,6 +63,7 @@ export default {
 
         let etag = metadata?.etag;
         if (!etag) {
+          log("info", "Generating etag for ICS content");
           etag = await generateEtag(ics);
         }
 
@@ -70,7 +71,8 @@ export default {
         if (metadata?.updatedAt) {
           lastModified = new Date(metadata.updatedAt).toUTCString();
         } else {
-          log("warn", "KV metadata missing 'updatedAt', using current time as Last-Modified fallback.");
+          // Fallback for legacy data without metadata or missing updatedAt
+          log("warn", "KV metadata missing updatedAt; using current time as fallback");
           lastModified = new Date().toUTCString();
         }
 
