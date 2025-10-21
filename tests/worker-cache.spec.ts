@@ -3,6 +3,7 @@ import worker from '../src/index';
 import type { Env } from '../src/types';
 import { createMockRequest, MockKVNamespace, installMockCaches } from './helpers/mocks';
 import { CACHE_KEY } from '../src/constants';
+import { generateEtag } from '../src/utils/etag';
 
 vi.mock('../src/parser', () => ({
   getEventsFromSite: vi.fn().mockResolvedValue([
@@ -66,7 +67,7 @@ describe('Worker Cache Integration', () => {
 
     expect(response.status).toBe(200);
     expect(await response.text()).toBe(icsContent);
-    expect(response.headers.get('last-modified')).toBeDefined();
+    expect(response.headers.get('last-modified')).toBe(new Date(updatedAt).toUTCString());
 
     const warmed = await caches.default.match(new Request(CACHE_KEY));
     expect(warmed).toBeDefined();
@@ -93,6 +94,6 @@ describe('Worker Cache Integration', () => {
     expect(await response.text()).toBe(icsContent);
     // Should still have a Last-Modified header (fallback to current time)
     expect(response.headers.get('last-modified')).toBeDefined();
-    expect(response.headers.get('etag')).toBeDefined();
+    expect(response.headers.get('etag')).toBe(await generateEtag(icsContent));
   });
 });
