@@ -44,7 +44,7 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     });
 
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
+      throw new Error(`HTTP ${res.status} - ${res.statusText}`);
     }
 
     const html = await res.text();
@@ -79,8 +79,8 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
       if (!dateRangeMatch) continue;
 
       const dateRangeText = dateRangeMatch[1]
-        .replace(/<[^>]*>/g, "") // Remove HTML tags
         .replace(/&nbsp;/g, " ") // Convert HTML spaces
+        .replace(/<[^>]*>/g, "") // Remove HTML tags
         .trim();
 
       // Second column contains the event title (often within a link)
@@ -91,8 +91,8 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
       let title = titleMatch ? titleMatch[1].trim() : "";
 
       // Clean up title for ICS compatibility
-      title = title.replace(/<[^>]*>/g, ""); // Remove any remaining HTML tags
       title = title.replace(/&nbsp;/g, " ");
+      title = title.replace(/<[^>]*>/g, ""); // Remove any remaining HTML tags
       title = title.replace(/[,]/g, " ");
       title = title.replace(/\s+/g, " ");
       title = title.trim();
