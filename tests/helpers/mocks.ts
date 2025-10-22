@@ -27,27 +27,29 @@ export const mockLongEvent: Event = {
 export const mockHtmlResponse = `
 <html>
 <body>
-  <table class="more_year">
+  <table>
+    <thead>
+      <tr>
+        <th>기간</th>
+        <th>일정</th>
+      </tr>
+    </thead>
     <tbody>
       <tr>
-        <td class="more_link">개강일</td>
-        <td class="start">3.1</td>
-        <td class="end"></td>
+        <td>03 . 01</td>
+        <td><a href="./selectSchdleWebView.do?key=542&schdleNum=976">개강일</a></td>
       </tr>
       <tr>
-        <td class="more_link">중간고사</td>
-        <td class="start">5.15</td>
-        <td class="end">5.17</td>
+        <td>05 . 15 - 05 . 17</td>
+        <td><a href="./selectSchdleWebView.do?key=542&schdleNum=977">중간고사</a></td>
       </tr>
       <tr>
-        <td class="more_link">수업보강</td>
-        <td class="start">4.1</td>
-        <td class="end"></td>
+        <td>04 . 01</td>
+        <td><a href="./selectSchdleWebView.do?key=542&schdleNum=978">수업보강</a></td>
       </tr>
       <tr>
-        <td class="more_link">어린이날</td>
-        <td class="start">5.5</td>
-        <td class="end"></td>
+        <td>05 . 05</td>
+        <td><a href="./selectSchdleWebView.do?key=542&schdleNum=979">어린이날</a></td>
       </tr>
     </tbody>
   </table>

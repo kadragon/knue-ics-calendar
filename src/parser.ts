@@ -1,5 +1,4 @@
 import { log } from "./utils/logger";
-import { withRetry } from "./utils/retry";
 import { Event } from "./types";
 import { HOLIDAYS, REQUEST_CONFIG } from "./constants";
 
@@ -38,26 +37,21 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
 
   try {
     log("info", `Fetching events from ${url}`);
-    const html = await withRetry(
-      () =>
-        fetch(url, {
-          headers: {
-            "User-Agent": REQUEST_CONFIG.userAgent,
-          },
-        }).then((res) => {
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-          }
-          return res.text();
-        }),
-      {
-        maxRetries: REQUEST_CONFIG.maxRetries,
-        delayMs: REQUEST_CONFIG.retryDelayMs,
-      }
-    );
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": REQUEST_CONFIG.userAgent,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const html = await res.text();
 
     const events: Event[] = [];
-    const tableMatches = html.match(/<table[^>]*class=["']more_year["'][^>]*>([\s\S]*?)<\/table>/g);
+    // Find all tables in the page (updated to handle tables without class attribute)
+    const tableMatches = html.match(/<table[^>]*>([\s\S]*?)<\/table>/g);
     if (!tableMatches || tableMatches.length === 0) {
       log("warn", "No events table found");
       return events;
@@ -73,16 +67,34 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     }
 
     for (const row of allRows) {
-      const titleMatch = row.match(/<td[^>]*class=["']more_link["'][^>]*>([\s\S]*?)<\/td>/);
-      const startMatch = row.match(/<td[^>]*class=["']start["'][^>]*>([\s\S]*?)<\/td>/);
-      const endMatch = row.match(/<td[^>]*class=["']end["'][^>]*>([\s\S]*?)<\/td>/);
+      // Extract date range from first <td> (e.g., "02 . 28 - 03 . 01")
+      const tds = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
+      if (tds.length < 2) continue;
 
+      // First column contains the date range
+      const dateRangeTd = tds[0];
+      if (!dateRangeTd) continue;
+
+      const dateRangeMatch = dateRangeTd.match(/<td[^>]*>([\s\S]*?)<\/td>/);
+      if (!dateRangeMatch) continue;
+
+      const dateRangeText = dateRangeMatch[1]
+        .replace(/<[^>]*>/g, "") // Remove HTML tags
+        .replace(/&nbsp;/g, " ") // Convert HTML spaces
+        .trim();
+
+      // Second column contains the event title (often within a link)
+      const titleTd = tds[1];
+      if (!titleTd) continue;
+
+      const titleMatch = titleTd.match(/(?:<a[^>]*>)?([\s\S]*?)(?:<\/a>)?<\/td>/);
       let title = titleMatch ? titleMatch[1].trim() : "";
 
       // Clean up title for ICS compatibility
+      title = title.replace(/<[^>]*>/g, ""); // Remove any remaining HTML tags
+      title = title.replace(/&nbsp;/g, " ");
       title = title.replace(/[,]/g, " ");
       title = title.replace(/\s+/g, " ");
-      title = title.replace(/학년도 /g, "-");
       title = title.trim();
 
       if (title.length > 45) {
@@ -91,18 +103,20 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
 
       if (!title || title.includes("수업보강") || isHoliday(title)) continue;
 
-      const startText = startMatch
-        ? startMatch[1].replace(/[^0-9.-]/g, "").trim()
-        : "";
-      if (!startText) {
-        log("warn", "Skipping event due to missing start date", { title });
+      // Parse date range (e.g., "02 . 28 - 03 . 01" or "03 . 01")
+      const dates = dateRangeText.split("-").map((d) => d.trim());
+      if (dates.length === 0) {
+        log("warn", "Skipping event due to missing date", { title });
         continue;
       }
 
-      let endText = endMatch
-        ? endMatch[1].replace(/[^0-9.-]/g, "").replace("-", "").trim()
-        : "";
-      if (!endText) endText = startText;
+      // Convert "02 . 28" format to "02.28"
+      const normalizeDate = (dateStr: string): string => {
+        return dateStr.replace(/\s+\.\s+/g, ".");
+      };
+
+      const startText = normalizeDate(dates[0]);
+      const endText = dates.length > 1 ? normalizeDate(dates[1]) : startText;
 
       const startIso = parseDate(startText, currentYear);
       if (!startIso) continue;
