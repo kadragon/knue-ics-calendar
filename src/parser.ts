@@ -1,7 +1,7 @@
 import { log } from "./utils/logger";
-import { withRetry } from "./utils/retry";
 import { Event } from "./types";
 import { HOLIDAYS, REQUEST_CONFIG } from "./constants";
+import * as cheerio from "cheerio";
 
 /**
  * 날짜 텍스트를 파싱하여 ISO 형식의 날짜 문자열로 변환합니다.
@@ -38,83 +38,88 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
 
   try {
     log("info", `Fetching events from ${url}`);
-    const html = await withRetry(
-      () =>
-        fetch(url, {
-          headers: {
-            "User-Agent": REQUEST_CONFIG.userAgent,
-          },
-        }).then((res) => {
-          if (!res.ok) {
-            throw new Error(`HTTP ${res.status}`);
-          }
-          return res.text();
-        }),
-      {
-        maxRetries: REQUEST_CONFIG.maxRetries,
-        delayMs: REQUEST_CONFIG.retryDelayMs,
-      }
-    );
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": REQUEST_CONFIG.userAgent,
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+    }
+
+    const html = await res.text();
 
     const events: Event[] = [];
-    const tableMatches = html.match(/<table[^>]*class=["']more_year["'][^>]*>([\s\S]*?)<\/table>/g);
-    if (!tableMatches || tableMatches.length === 0) {
+    const $ = cheerio.load(html);
+
+    // Find all tables in the page
+    const tables = $("table");
+    if (tables.length === 0) {
       log("warn", "No events table found");
       return events;
     }
 
-    const allRows: string[] = [];
-    for (const table of tableMatches) {
-      const tbodyMatch = table.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/);
-      if (tbodyMatch) {
-        const rows = tbodyMatch[1].match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
-        allRows.push(...rows);
-      }
-    }
+    // Iterate through all tables and extract rows
+    tables.each((_tableIndex, tableElement) => {
+      const $table = $(tableElement);
+      const rows = $table.find("tbody tr");
 
-    for (const row of allRows) {
-      const titleMatch = row.match(/<td[^>]*class=["']more_link["'][^>]*>([\s\S]*?)<\/td>/);
-      const startMatch = row.match(/<td[^>]*class=["']start["'][^>]*>([\s\S]*?)<\/td>/);
-      const endMatch = row.match(/<td[^>]*class=["']end["'][^>]*>([\s\S]*?)<\/td>/);
+      rows.each((_rowIndex, rowElement) => {
+        const $row = $(rowElement);
+        const $tds = $row.find("td");
 
-      let title = titleMatch ? titleMatch[1].trim() : "";
+        if ($tds.length < 2) return; // continue to next row
 
-      // Clean up title for ICS compatibility
-      title = title.replace(/[,]/g, " ");
-      title = title.replace(/\s+/g, " ");
-      title = title.replace(/학년도 /g, "-");
-      title = title.trim();
+        // Extract date range from first column (e.g., "02 . 28 - 03 . 01")
+        const dateRangeText = $tds.eq(0).text().trim();
+        if (!dateRangeText) {
+          return; // continue to next row
+        }
 
-      if (title.length > 45) {
-        title = title.substring(0, 42) + "...";
-      }
+        // Extract event title from second column (safely handles links, badges, icons, etc.)
+        let title = $tds.eq(1).text().trim();
 
-      if (!title || title.includes("수업보강") || isHoliday(title)) continue;
+        // Clean up title for ICS compatibility
+        title = title.replace(/[,]/g, " ")  // Replace commas with spaces
+                     .replace(/\s+/g, " ") // Collapse whitespace
+                     .trim();              // Remove leading/trailing whitespace
 
-      const startText = startMatch
-        ? startMatch[1].replace(/[^0-9.-]/g, "").trim()
-        : "";
-      if (!startText) {
-        log("warn", "Skipping event due to missing start date", { title });
-        continue;
-      }
+        if (title.length > 45) {
+          title = title.substring(0, 42) + "...";
+        }
 
-      let endText = endMatch
-        ? endMatch[1].replace(/[^0-9.-]/g, "").replace("-", "").trim()
-        : "";
-      if (!endText) endText = startText;
+        if (!title || title.includes("수업보강") || isHoliday(title)) {
+          return; // continue to next row
+        }
 
-      const startIso = parseDate(startText, currentYear);
-      if (!startIso) continue;
+        // Parse date range (e.g., "02 . 28 - 03 . 01" or "03 . 01")
+        const dates = dateRangeText.split("-").map((d) => d.trim());
+        if (dates.length === 0) {
+          log("warn", "Skipping event due to missing date", { title });
+          return; // continue to next row
+        }
 
-      let endIso = parseDate(endText, currentYear);
-      if (!endIso) endIso = startIso;
+        // Convert "02 . 28" format to "02.28"
+        const normalizeDate = (dateStr: string): string => {
+          return dateStr.replace(/\s+\.\s+/g, ".");
+        };
 
-      const startDate = new Date(startIso);
-      const endDate = new Date(endIso);
+        const startText = normalizeDate(dates[0]);
+        const endText = dates.length > 1 ? normalizeDate(dates[1]) : startText;
 
-      events.push({ start: startDate, end: endDate, title });
-    }
+        const startIso = parseDate(startText, currentYear);
+        if (!startIso) return; // continue to next row
+
+        let endIso = parseDate(endText, currentYear);
+        if (!endIso) endIso = startIso;
+
+        const startDate = new Date(startIso);
+        const endDate = new Date(endIso);
+
+        events.push({ start: startDate, end: endDate, title });
+      });
+    });
 
     log("info", `Successfully parsed ${events.length} events`);
     return events;

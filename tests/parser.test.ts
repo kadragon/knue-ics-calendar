@@ -27,17 +27,15 @@ describe('Parser', () => {
 
   it('should filter out holidays', async () => {
     const htmlWithHoliday = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="more_link">어린이날</td>
-            <td class="start">5.5</td>
-            <td class="end"></td>
+            <td>05 . 05</td>
+            <td><a href="#">어린이날</a></td>
           </tr>
           <tr>
-            <td class="more_link">정상 이벤트</td>
-            <td class="start">5.10</td>
-            <td class="end"></td>
+            <td>05 . 10</td>
+            <td><a href="#">정상 이벤트</a></td>
           </tr>
         </tbody>
       </table>
@@ -53,17 +51,15 @@ describe('Parser', () => {
 
   it('should filter out 수업보강 events', async () => {
     const htmlWithMakeup = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="more_link">수업보강</td>
-            <td class="start">4.1</td>
-            <td class="end"></td>
+            <td>04 . 01</td>
+            <td><a href="#">수업보강</a></td>
           </tr>
           <tr>
-            <td class="more_link">정상 이벤트</td>
-            <td class="start">4.2</td>
-            <td class="end"></td>
+            <td>04 . 02</td>
+            <td><a href="#">정상 이벤트</a></td>
           </tr>
         </tbody>
       </table>
@@ -101,17 +97,15 @@ describe('Parser', () => {
 
   it('should handle cross-year academic calendar', async () => {
     const htmlCrossYear = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="more_link">겨울방학</td>
-            <td class="start">1.15</td>
-            <td class="end">2.28</td>
+            <td>01 . 15 - 02 . 28</td>
+            <td><a href="#">겨울방학</a></td>
           </tr>
           <tr>
-            <td class="more_link">개강일</td>
-            <td class="start">3.1</td>
-            <td class="end"></td>
+            <td>03 . 01</td>
+            <td><a href="#">개강일</a></td>
           </tr>
         </tbody>
       </table>
@@ -136,22 +130,20 @@ describe('Parser', () => {
     const events = await getEventsFromSite(2024);
 
     expect(events).toEqual([]);
-    expect(fetchMock).toHaveBeenCalledTimes(3); // Should retry 3 times
-  }, 10000); // 10 second timeout
+    expect(fetchMock).toHaveBeenCalledTimes(1); // Should be called once, no retry
+  });
 
   it('should skip events with missing start date', async () => {
     const htmlMissingDate = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="more_link">이벤트 무효</td>
-            <td class="start"></td>
-            <td class="end"></td>
+            <td></td>
+            <td><a href="#">이벤트 무효</a></td>
           </tr>
           <tr>
-            <td class="more_link">정상 이벤트</td>
-            <td class="start">3.1</td>
-            <td class="end"></td>
+            <td>03 . 01</td>
+            <td><a href="#">정상 이벤트</a></td>
           </tr>
         </tbody>
       </table>
@@ -175,26 +167,13 @@ describe('Parser', () => {
     expect(events).toEqual([]);
   });
 
-  it('should use retry mechanism on failure', async () => {
-    // First two calls fail, third succeeds
-    fetchMock
-      .mockRejectedValueOnce(new Error('Network error'))
-      .mockRejectedValueOnce(new Error('Timeout'))
-      .mockResolvedValue(new Response(mockHtmlResponse));
-
-    const events = await getEventsFromSite(2024);
-
-    expect(fetchMock).toHaveBeenCalledTimes(3);
-    expect(events).toHaveLength(2);
-  }, 10000); // 10 second timeout
-
   it('should handle events with missing title gracefully', async () => {
     const htmlMissingTitle = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="start">3.1</td>
-            <td class="end"></td>
+            <td>03 . 01</td>
+            <td><a href="#"></a></td>
           </tr>
         </tbody>
       </table>
@@ -210,12 +189,11 @@ describe('Parser', () => {
   it('should truncate long titles', async () => {
     const longTitle = 'A'.repeat(50); // Longer than 45 chars
     const htmlLongTitle = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="more_link">${longTitle}</td>
-            <td class="start">3.1</td>
-            <td class="end"></td>
+            <td>03 . 01</td>
+            <td><a href="#">${longTitle}</a></td>
           </tr>
         </tbody>
       </table>
@@ -231,11 +209,11 @@ describe('Parser', () => {
 
   it('should handle events with missing start date gracefully', async () => {
     const htmlMissingStart = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="more_link">이벤트</td>
-            <td class="end">3.2</td>
+            <td></td>
+            <td><a href="#">이벤트</a></td>
           </tr>
         </tbody>
       </table>
@@ -250,11 +228,11 @@ describe('Parser', () => {
 
   it('should handle events with missing end date gracefully', async () => {
     const htmlMissingEnd = `
-      <table class="more_year">
+      <table>
         <tbody>
           <tr>
-            <td class="more_link">이벤트</td>
-            <td class="start">3.1</td>
+            <td>03 . 01</td>
+            <td><a href="#">이벤트</a></td>
           </tr>
         </tbody>
       </table>
@@ -276,5 +254,30 @@ describe('Parser', () => {
     const events = await getEventsFromSite(2024);
 
     expect(events).toEqual([]);
+  });
+
+  it('should extract title when extra markup (badges, icons) exists', async () => {
+    const htmlWithBadge = `
+      <table>
+        <tbody>
+          <tr>
+            <td>03 . 01</td>
+            <td><a href="#">중간고사</a><span class="tag-new"></span></td>
+          </tr>
+          <tr>
+            <td>03 . 02</td>
+            <td><a href="#">개강일</a><i class="icon-important"></i><em></em></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    fetchMock.mockResolvedValue(new Response(htmlWithBadge));
+
+    const events = await getEventsFromSite(2024);
+
+    expect(events).toHaveLength(2);
+    expect(events[0].title).toBe('중간고사');
+    expect(events[1].title).toBe('개강일');
   });
 });
