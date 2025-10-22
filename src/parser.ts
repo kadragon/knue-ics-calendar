@@ -1,6 +1,7 @@
 import { log } from "./utils/logger";
 import { Event } from "./types";
 import { HOLIDAYS, REQUEST_CONFIG } from "./constants";
+import * as cheerio from "cheerio";
 
 /**
  * 날짜 텍스트를 파싱하여 ISO 형식의 날짜 문자열로 변환합니다.
@@ -50,86 +51,75 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     const html = await res.text();
 
     const events: Event[] = [];
-    // Find all tables in the page (updated to handle tables without class attribute)
-    const tableMatches = html.match(/<table[^>]*>([\s\S]*?)<\/table>/g);
-    if (!tableMatches || tableMatches.length === 0) {
+    const $ = cheerio.load(html);
+
+    // Find all tables in the page
+    const tables = $("table");
+    if (tables.length === 0) {
       log("warn", "No events table found");
       return events;
     }
 
-    const allRows: string[] = [];
-    for (const table of tableMatches) {
-      const tbodyMatch = table.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/);
-      if (tbodyMatch) {
-        const rows = tbodyMatch[1].match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
-        allRows.push(...rows);
-      }
-    }
+    // Iterate through all tables and extract rows
+    tables.each((_tableIndex, tableElement) => {
+      const $table = $(tableElement);
+      const rows = $table.find("tbody tr");
 
-    for (const row of allRows) {
-      // Extract date range from first <td> (e.g., "02 . 28 - 03 . 01")
-      const tds = row.match(/<td[^>]*>([\s\S]*?)<\/td>/g) || [];
-      if (tds.length < 2) continue;
+      rows.each((_rowIndex, rowElement) => {
+        const $row = $(rowElement);
+        const $tds = $row.find("td");
 
-      // First column contains the date range
-      const dateRangeTd = tds[0];
-      if (!dateRangeTd) continue;
+        if ($tds.length < 2) return; // continue to next row
 
-      const dateRangeMatch = dateRangeTd.match(/<td[^>]*>([\s\S]*?)<\/td>/);
-      if (!dateRangeMatch) continue;
+        // Extract date range from first column (e.g., "02 . 28 - 03 . 01")
+        const dateRangeText = $tds.eq(0).text().trim();
+        if (!dateRangeText) {
+          return; // continue to next row
+        }
 
-      const dateRangeText = dateRangeMatch[1]
-        .replace(/&nbsp;/g, " ") // Convert HTML spaces
-        .replace(/<[^>]*>/g, "") // Remove HTML tags
-        .trim();
+        // Extract event title from second column (safely handles links, badges, icons, etc.)
+        let title = $tds.eq(1).text().trim();
 
-      // Second column contains the event title (may include links, badges, or other markup)
-      const titleTd = tds[1];
-      if (!titleTd) continue;
+        // Clean up title for ICS compatibility
+        title = title.replace(/[,]/g, " ")  // Replace commas with spaces
+                     .replace(/\s+/g, " ") // Collapse whitespace
+                     .trim();              // Remove leading/trailing whitespace
 
-      // Extract text content from <td>...</td>, handling any inner HTML structure
-      // This approach handles cases where badges, icons, or other elements follow the link
-      let title = titleTd
-        .replace(/<td[^>]*>/g, "")      // Remove opening <td> tag
-        .replace(/<\/td>/g, "")         // Remove closing </td> tag
-        .replace(/&nbsp;/g, " ")        // Convert HTML spaces
-        .replace(/<[^>]*>/g, "")        // Remove all HTML tags (links, spans, badges, etc.)
-        .replace(/[,]/g, " ")           // Replace commas with spaces
-        .replace(/\s+/g, " ")           // Collapse whitespace
-        .trim();                        // Remove leading/trailing whitespace
+        if (title.length > 45) {
+          title = title.substring(0, 42) + "...";
+        }
 
-      if (title.length > 45) {
-        title = title.substring(0, 42) + "...";
-      }
+        if (!title || title.includes("수업보강") || isHoliday(title)) {
+          return; // continue to next row
+        }
 
-      if (!title || title.includes("수업보강") || isHoliday(title)) continue;
+        // Parse date range (e.g., "02 . 28 - 03 . 01" or "03 . 01")
+        const dates = dateRangeText.split("-").map((d) => d.trim());
+        if (dates.length === 0) {
+          log("warn", "Skipping event due to missing date", { title });
+          return; // continue to next row
+        }
 
-      // Parse date range (e.g., "02 . 28 - 03 . 01" or "03 . 01")
-      const dates = dateRangeText.split("-").map((d) => d.trim());
-      if (dates.length === 0) {
-        log("warn", "Skipping event due to missing date", { title });
-        continue;
-      }
+        // Convert "02 . 28" format to "02.28"
+        const normalizeDate = (dateStr: string): string => {
+          return dateStr.replace(/\s+\.\s+/g, ".");
+        };
 
-      // Convert "02 . 28" format to "02.28"
-      const normalizeDate = (dateStr: string): string => {
-        return dateStr.replace(/\s+\.\s+/g, ".");
-      };
+        const startText = normalizeDate(dates[0]);
+        const endText = dates.length > 1 ? normalizeDate(dates[1]) : startText;
 
-      const startText = normalizeDate(dates[0]);
-      const endText = dates.length > 1 ? normalizeDate(dates[1]) : startText;
+        const startIso = parseDate(startText, currentYear);
+        if (!startIso) return; // continue to next row
 
-      const startIso = parseDate(startText, currentYear);
-      if (!startIso) continue;
+        let endIso = parseDate(endText, currentYear);
+        if (!endIso) endIso = startIso;
 
-      let endIso = parseDate(endText, currentYear);
-      if (!endIso) endIso = startIso;
+        const startDate = new Date(startIso);
+        const endDate = new Date(endIso);
 
-      const startDate = new Date(startIso);
-      const endDate = new Date(endIso);
-
-      events.push({ start: startDate, end: endDate, title });
-    }
+        events.push({ start: startDate, end: endDate, title });
+      });
+    });
 
     log("info", `Successfully parsed ${events.length} events`);
     return events;
