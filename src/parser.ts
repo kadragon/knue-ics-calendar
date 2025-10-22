@@ -83,19 +83,20 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
         .replace(/<[^>]*>/g, "") // Remove HTML tags
         .trim();
 
-      // Second column contains the event title (often within a link)
+      // Second column contains the event title (may include links, badges, or other markup)
       const titleTd = tds[1];
       if (!titleTd) continue;
 
-      const titleMatch = titleTd.match(/(?:<a[^>]*>)?([\s\S]*?)(?:<\/a>)?<\/td>/);
-      let title = titleMatch ? titleMatch[1].trim() : "";
-
-      // Clean up title for ICS compatibility
-      title = title.replace(/&nbsp;/g, " ");
-      title = title.replace(/<[^>]*>/g, ""); // Remove any remaining HTML tags
-      title = title.replace(/[,]/g, " ");
-      title = title.replace(/\s+/g, " ");
-      title = title.trim();
+      // Extract text content from <td>...</td>, handling any inner HTML structure
+      // This approach handles cases where badges, icons, or other elements follow the link
+      let title = titleTd
+        .replace(/<td[^>]*>/g, "")      // Remove opening <td> tag
+        .replace(/<\/td>/g, "")         // Remove closing </td> tag
+        .replace(/&nbsp;/g, " ")        // Convert HTML spaces
+        .replace(/<[^>]*>/g, "")        // Remove all HTML tags (links, spans, badges, etc.)
+        .replace(/[,]/g, " ")           // Replace commas with spaces
+        .replace(/\s+/g, " ")           // Collapse whitespace
+        .trim();                        // Remove leading/trailing whitespace
 
       if (title.length > 45) {
         title = title.substring(0, 42) + "...";

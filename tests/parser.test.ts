@@ -255,4 +255,29 @@ describe('Parser', () => {
 
     expect(events).toEqual([]);
   });
+
+  it('should extract title when extra markup (badges, icons) exists', async () => {
+    const htmlWithBadge = `
+      <table>
+        <tbody>
+          <tr>
+            <td>03 . 01</td>
+            <td><a href="#">중간고사</a><span class="tag-new"></span></td>
+          </tr>
+          <tr>
+            <td>03 . 02</td>
+            <td><a href="#">개강일</a><i class="icon-important"></i><em></em></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    fetchMock.mockResolvedValue(new Response(htmlWithBadge));
+
+    const events = await getEventsFromSite(2024);
+
+    expect(events).toHaveLength(2);
+    expect(events[0].title).toBe('중간고사');
+    expect(events[1].title).toBe('개강일');
+  });
 });
