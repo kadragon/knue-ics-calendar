@@ -53,8 +53,8 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     const events: Event[] = [];
     const $ = cheerio.load(html);
 
-    // Find all tables in the page
-    const tables = $("table");
+    // Find all tables in the page (exclude calendar UI table)
+    const tables = $("table").not(".knue_calendar");
     if (tables.length === 0) {
       log("warn", "No events table found");
       return events;
