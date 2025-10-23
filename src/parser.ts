@@ -1,6 +1,6 @@
 import { log } from "./utils/logger";
 import { Event } from "./types";
-import { HOLIDAYS, REQUEST_CONFIG } from "./constants";
+import { HOLIDAYS, REQUEST_CONFIG, PARSER_CONFIG } from "./constants";
 import * as cheerio from "cheerio";
 
 /**
@@ -54,7 +54,7 @@ export async function getEventsFromSite(currentYear: number): Promise<Event[]> {
     const $ = cheerio.load(html);
 
     // Find all tables in the page (exclude calendar UI table)
-    const tables = $("table").not(".knue_calendar");
+    const tables = $("table").not(PARSER_CONFIG.excludedTableSelector);
     if (tables.length === 0) {
       log("warn", "No events table found");
       return events;
