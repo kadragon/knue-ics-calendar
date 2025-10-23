@@ -32,3 +32,7 @@ export const CACHE_CONFIG = {
 } as const;
 
 export const CACHE_KEY = "https://knue-ics-cache/events.ics";
+
+export const PARSER_CONFIG = {
+  excludedTableSelector: ".knue_calendar",
+} as const;
