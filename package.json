@@ -15,7 +15,8 @@
     "dev": "NODE_ENV=development wrangler dev --local",
     "deploy": "wrangler deploy",
     "deploy:prod": "wrangler deploy --env production",
-    "build": "wrangler deploy --dry-run"
+    "build": "wrangler deploy --dry-run",
+    "build:pages": "tsc && cp -r src/index.ts dist/index.ts"
   },
   "author": "",
   "license": "ISC",
