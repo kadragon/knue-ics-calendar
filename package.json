@@ -7,21 +7,17 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage",
     "lint": "eslint \"{src,tests}/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "dev": "NODE_ENV=development wrangler dev --local",
-    "deploy": "wrangler deploy",
-    "deploy:prod": "wrangler deploy --env production",
-    "build": "wrangler deploy --dry-run"
+    "deploy": "wrangler deploy"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "cheerio": "^1.1.2",
-    "ical-generator": "^6.0.0"
+    "ical-generator": "^9.0.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250719.0",

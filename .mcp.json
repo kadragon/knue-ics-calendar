@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "cloudflare": {
+    "cloudflare-observability": {
       "command": "npx",
       "args": ["mcp-remote", "https://observability.mcp.cloudflare.com/mcp"]
     }
