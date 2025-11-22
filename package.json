@@ -13,6 +13,9 @@
     "dev": "NODE_ENV=development wrangler dev --local",
     "deploy": "wrangler deploy"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
