@@ -13,6 +13,9 @@
     "dev": "NODE_ENV=development wrangler dev --local",
     "deploy": "wrangler deploy"
   },
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -26,13 +29,13 @@
     "@typescript-eslint/parser": "^8.46.1",
     "@vitest/coverage-v8": "^4.0.10",
     "@vitest/eslint-plugin": "^1.4.0",
-    "@vitest/ui": "^3.2.4",
+    "@vitest/ui": "^4.0.10",
     "eslint": "^9.39.0",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "jsdom": "^27.1.0",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4",
+    "vitest": "^4.0.10",
     "wrangler": "^4.25.0"
   }
 }
