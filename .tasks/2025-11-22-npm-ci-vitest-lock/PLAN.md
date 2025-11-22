@@ -15,7 +15,7 @@
 - Risk: Potential Vitest minor patch behavior change — Mitigation: run full test suite to confirm.
 
 ## Dependencies
-- npm registry availability; local Node 22.16.0 per environment.
+- npm registry availability; runtime >= Node 20 per package.json (`engines`), executed with Node 22.16.0 locally to mirror build env.
 
 ## Approval Checklist
 - [ ] Maintainer review
