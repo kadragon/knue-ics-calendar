@@ -8,6 +8,7 @@
 | 2025-11-22T12:05:52+09:00 | Implement | Ran test suite after dependency update. | npm test (pass) |
 | 2025-11-22T12:06:07+09:00 | Implement | Verified clean install works. | npm ci (pass) |
 | 2025-11-22T12:20:00+09:00 | Review | Clarified Node version note in PLAN to state engines >=20, executed on Node 22.16.0. | n/a |
+| 2025-11-22T12:22:30+09:00 | Review | Marked approval checklist 'Tests identified' as completed per reviewer note. | n/a |
 
 ## Decisions
 - Proceed with aligning Vitest dependencies to 4.0.13 and regenerating lockfile.
