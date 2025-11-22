@@ -19,6 +19,7 @@
 - Add test to pre-commit hook
 - Measure test coverage
 - Improve Test Coverage
+- Resolve npm ci Vitest lockfile mismatch (2025-11-22-npm-ci-vitest-lock)
 
 ## Archived Tasks
 
