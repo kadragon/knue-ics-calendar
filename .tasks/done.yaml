@@ -1,0 +1,6 @@
+- task_id: TASK-CI-001
+  spec_id: SPEC-CI-001
+  title: "Setup GitHub Actions CI"
+  status: completed
+  completion_date: "2025-11-26"
+  notes: "Created .github/workflows/ci.yml with lint, typecheck, and test jobs."
