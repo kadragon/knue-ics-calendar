@@ -1,56 +1,56 @@
 import { ICalCalendar } from "ical-generator";
-import { Event } from "../types";
 import { CALENDAR_CONFIG } from "../constants";
+import type { Event } from "../types";
 
 /**
  * Creates an iCal calendar with event processing logic
  */
 export function createCalendarWithEvents(events: Event[]): ICalCalendar {
-  const calendar = new ICalCalendar(CALENDAR_CONFIG);
+	const calendar = new ICalCalendar(CALENDAR_CONFIG);
 
-  events.forEach((event) => {
-    const diffTime = Math.abs(event.end.getTime() - event.start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+	events.forEach((event) => {
+		const diffTime = Math.abs(event.end.getTime() - event.start.getTime());
+		const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (diffDays > 3) {
-      // Format dates for split event summaries
-      const startDateFormat = `${event.start.getMonth() + 1}. ${event.start.getDate().toString()}`;
-      const endDateFormat = `${event.end.getMonth() + 1}. ${event.end.getDate().toString()}`;
+		if (diffDays > 3) {
+			// Format dates for split event summaries
+			const startDateFormat = `${event.start.getMonth() + 1}. ${event.start.getDate().toString()}`;
+			const endDateFormat = `${event.end.getMonth() + 1}. ${event.end.getDate().toString()}`;
 
-      // Create start event
-      const startEventEnd = new Date(event.start);
-      startEventEnd.setDate(startEventEnd.getDate() + 1);
-      
-      calendar.createEvent({
-        start: event.start,
-        end: startEventEnd,
-        summary: `${event.title} 시작 (~${endDateFormat}.)`,
-        allDay: true,
-      });
+			// Create start event
+			const startEventEnd = new Date(event.start);
+			startEventEnd.setDate(startEventEnd.getDate() + 1);
 
-      // Create end event
-      const endEventEnd = new Date(event.end);
-      endEventEnd.setDate(endEventEnd.getDate() + 1);
-      
-      calendar.createEvent({
-        start: event.end,
-        end: endEventEnd,
-        summary: `${event.title} 종료 (${startDateFormat}.~)`,
-        allDay: true,
-      });
-    } else {
-      // For all-day events, end date should be the day after
-      const eventEnd = new Date(event.end);
-      eventEnd.setDate(eventEnd.getDate() + 1);
-      
-      calendar.createEvent({
-        start: event.start,
-        end: eventEnd,
-        summary: event.title,
-        allDay: true,
-      });
-    }
-  });
+			calendar.createEvent({
+				start: event.start,
+				end: startEventEnd,
+				summary: `${event.title} 시작 (~${endDateFormat}.)`,
+				allDay: true,
+			});
 
-  return calendar;
+			// Create end event
+			const endEventEnd = new Date(event.end);
+			endEventEnd.setDate(endEventEnd.getDate() + 1);
+
+			calendar.createEvent({
+				start: event.end,
+				end: endEventEnd,
+				summary: `${event.title} 종료 (${startDateFormat}.~)`,
+				allDay: true,
+			});
+		} else {
+			// For all-day events, end date should be the day after
+			const eventEnd = new Date(event.end);
+			eventEnd.setDate(eventEnd.getDate() + 1);
+
+			calendar.createEvent({
+				start: event.start,
+				end: eventEnd,
+				summary: event.title,
+				allDay: true,
+			});
+		}
+	});
+
+	return calendar;
 }

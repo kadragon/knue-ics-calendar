@@ -10,3 +10,9 @@
   status: completed
   completion_date: "2025-11-26"
   notes: "Added build script to package.json and build step to CI."
+- task_id: TASK-MIGRATE-BIOME
+  spec_id: SPEC-CI-001
+  title: "Migrate to Biome"
+  status: completed
+  completion_date: "2025-11-26"
+  notes: "Replaced ESLint/Prettier with Biome. Updated scripts and CI."
