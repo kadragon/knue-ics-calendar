@@ -17,3 +17,4 @@
 - Added `biome.json` and updated `package.json` scripts.
 - `npm run lint` now runs `biome check .`.
 - Fixed existing lint/format issues (mostly `import type`, template literals, and optional chaining).
+- **Decision**: Kept `tsc` for `typecheck`. Biome currently does not support semantic type checking, only linting/formatting.
