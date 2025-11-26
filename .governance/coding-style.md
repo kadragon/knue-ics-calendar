@@ -12,4 +12,4 @@
 - No non-null assertions (`!`) unless absolutely necessary (and suppressed).
 
 ## Git Hooks
-- Husky is set up to run checks. (Note: I haven't checked `.husky/pre-commit` yet).
+- Husky is set up to run checks on pre-commit.
