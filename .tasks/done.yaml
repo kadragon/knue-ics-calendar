@@ -4,3 +4,9 @@
   status: completed
   completion_date: "2025-11-26"
   notes: "Created .github/workflows/ci.yml with lint, typecheck, and test jobs."
+- task_id: TASK-CI-002
+  spec_id: SPEC-CI-001
+  title: "Add Build Step to CI"
+  status: completed
+  completion_date: "2025-11-26"
+  notes: "Added build script to package.json and build step to CI."

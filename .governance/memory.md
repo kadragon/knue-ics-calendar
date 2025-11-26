@@ -7,5 +7,6 @@
 
 ## Session 1 (CI Setup)
 - Created GitHub Actions workflow `.github/workflows/ci.yml`.
-- Workflow includes `lint`, `typecheck`, and `test` steps running on Node 20.
+- Workflow includes `lint`, `typecheck`, `build`, and `test` steps running on Node 20.
+- `build` step uses `wrangler deploy --dry-run --outdir dist` to verify bundling.
 - Verified all commands pass locally.
