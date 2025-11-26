@@ -1,0 +1,12 @@
+spec_id: SPEC-CI-001
+title: "GitHub Actions CI Workflow"
+given_when_then:
+  - given: "A push or pull request to the main branch"
+    when: "The CI workflow is triggered"
+    then: "It should run lint, typecheck, build, and tests"
+acceptance_tests:
+  - id: TEST-CI-001
+    desc: "Workflow file exists and contains correct steps including build"
+linked_tasks:
+  - TASK-CI-001
+  - TASK-CI-002
