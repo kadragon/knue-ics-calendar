@@ -34,7 +34,7 @@
 		"husky": "^9.1.7",
 		"jsdom": "^27.2.0",
 		"typescript": "^5.9.3",
-		"vitest": "4.0.13",
+		"vitest": "4.0.14",
 		"wrangler": "^4.50.0"
 	}
 }
