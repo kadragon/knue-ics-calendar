@@ -30,7 +30,7 @@
 		"@cloudflare/workers-types": "^4.20251126.0",
 		"@types/node": "^24.10.1",
 		"@vitest/coverage-v8": "4.0.13",
-		"@vitest/ui": "4.0.13",
+		"@vitest/ui": "4.0.15",
 		"husky": "^9.1.7",
 		"jsdom": "^27.2.0",
 		"typescript": "^5.9.3",
