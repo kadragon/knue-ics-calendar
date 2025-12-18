@@ -28,7 +28,8 @@ export const REQUEST_CONFIG = {
 } as const;
 
 export const CACHE_CONFIG = {
-	maxAge: 60 * 60 * 24, // 1 days
+	maxAge: 60 * 60 * 24, // 1 day (HTTP cache)
+	kvTtl: 60 * 60 * 24, // 1 day (KV TTL for on-demand generation)
 } as const;
 
 export const CACHE_KEY = "https://knue-ics-cache/events.ics";

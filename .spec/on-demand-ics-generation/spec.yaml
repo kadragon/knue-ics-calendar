@@ -1,0 +1,37 @@
+spec_id: SPEC-on-demand-ics-generation-1
+title: "On-Demand ICS Generation with 24-Hour Caching"
+description: |
+  Replace scheduled cron-based ICS generation with on-demand generation.
+  Users request ICS → check if cached and within 24 hours → serve or regenerate.
+
+given_when_then:
+  - given: "A user requests the .ics file"
+    when: "ICS exists in KV and was generated less than 24 hours ago"
+    then: "Serve the cached ICS without regeneration"
+
+  - given: "A user requests the .ics file"
+    when: "ICS does not exist in KV or is older than 24 hours"
+    then: "Fetch fresh events from the site, generate new ICS, cache in KV, and serve it"
+
+  - given: "The system is running"
+    when: "No cron/scheduled trigger exists"
+    then: "ICS generation only happens on user request"
+
+acceptance_tests:
+  - id: TEST-on-demand-1
+    desc: "Serve cached ICS when within 24-hour window"
+    
+  - id: TEST-on-demand-2
+    desc: "Generate new ICS when cache is older than 24 hours"
+    
+  - id: TEST-on-demand-3
+    desc: "Generate new ICS when KV is empty"
+    
+  - id: TEST-on-demand-4
+    desc: "Preserve etag and last-modified for cache validation"
+
+dependencies:
+  - governance: "cached ics generation logic"
+
+linked_tasks:
+  - TASK-on-demand-1

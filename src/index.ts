@@ -27,19 +27,68 @@ const buildIcsResponse = (
 		},
 	});
 
+/**
+ * Check if ICS cache is still valid (within 24 hours)
+ */
+const isCacheValid = (updatedAt: string | undefined): boolean => {
+	if (!updatedAt) return false;
+	const cacheTime = new Date(updatedAt).getTime();
+	const now = Date.now();
+	const ageMs = now - cacheTime;
+	const maxAgeMs = CACHE_CONFIG.kvTtl * 1000;
+	return ageMs < maxAgeMs;
+};
+
+/**
+ * Generate ICS from site and save to KV
+ */
+const generateAndSaveIcs = async (
+	env: Env,
+): Promise<{
+	ics: string;
+	etag: string;
+	updatedAt: string;
+}> => {
+	log("info", "Generating ICS on-demand");
+	const currentYear = new Date().getFullYear();
+	const events = await getEventsFromSite(currentYear);
+
+	if (!events || events.length === 0) {
+		log("error", "No events parsed from site");
+		throw new Error("No events found from site");
+	}
+
+	const calendar = createCalendarWithEvents(events);
+	const icsString = calendar.toString();
+	const updatedAt = new Date().toISOString();
+	const etag = await generateEtag(icsString);
+
+	// Save to KV with metadata
+	await env.KNUE_CAL_KV.put("latest", icsString, {
+		metadata: {
+			updatedAt,
+			etag,
+		},
+	});
+
+	log("info", "ICS generated and saved to KV");
+	return { ics: icsString, etag, updatedAt };
+};
+
 export default {
 	async fetch(req: Request, env: Env) {
 		try {
 			const url = new URL(req.url);
 			if (url.pathname.endsWith(".ics")) {
 				const ifNoneMatch = req.headers.get("if-none-match");
-				const cachedResponse = await caches.default.match(cacheRequest);
 
+				// 1. Check HTTP cache first
+				const cachedResponse = await caches.default.match(cacheRequest);
 				if (cachedResponse) {
 					const cachedHeaders = new Headers(cachedResponse.headers);
 					const cachedEtag = cachedHeaders.get("etag");
 					if (cachedEtag && ifNoneMatch === cachedEtag) {
-						log("info", "Returning 304 Not Modified (cache hit)");
+						log("info", "Returning 304 Not Modified (HTTP cache hit)");
 						const responseHeaders = new Headers({ etag: cachedEtag });
 						const cachedLastModified = cachedHeaders.get("last-modified");
 						if (cachedLastModified) {
@@ -50,50 +99,71 @@ export default {
 							headers: responseHeaders,
 						});
 					}
-					log("info", "Serving ICS file from cache");
+					log("info", "Serving ICS file from HTTP cache");
 					return cachedResponse;
 				}
 
-				const { value: ics, metadata } =
+				// 2. Check KV cache and validate age
+				const { value: kvIcs, metadata: kvMetadata } =
 					await env.KNUE_CAL_KV.getWithMetadata<IcsMetadata>("latest", "text");
-				if (!ics) {
-					log("warn", "ICS not available in KV");
-					return new Response("Calendar not available yet", {
-						status: 503,
-						headers: { "retry-after": "3600" },
-					});
-				}
 
-				let etag = metadata?.etag;
-				if (!etag) {
-					log("info", "Generating etag for ICS content");
-					etag = await generateEtag(ics);
-				}
+				let ics: string;
+				let etag: string;
+				let updatedAt: string;
 
-				let lastModified: string;
-				if (metadata?.updatedAt) {
-					lastModified = new Date(metadata.updatedAt).toUTCString();
+				if (kvIcs && isCacheValid(kvMetadata?.updatedAt)) {
+					// KV cache is valid, use it
+					log("info", "Serving ICS file from KV cache (within 24 hours)");
+					ics = kvIcs;
+					etag = kvMetadata?.etag || (await generateEtag(kvIcs));
+					updatedAt = kvMetadata?.updatedAt || new Date().toISOString();
 				} else {
-					// Fallback for legacy data without metadata or missing updatedAt
-					log(
-						"warn",
-						"KV metadata missing updatedAt; using current time as fallback",
-					);
-					lastModified = new Date().toUTCString();
+					// KV cache is missing or stale, generate new ICS
+					if (kvIcs) {
+						log("info", "KV cache is stale, regenerating ICS");
+					} else {
+						log("info", "KV cache is empty, generating ICS");
+					}
+					try {
+						const result = await generateAndSaveIcs(env);
+						ics = result.ics;
+						etag = result.etag;
+						updatedAt = result.updatedAt;
+					} catch (_genErr: unknown) {
+						// If generation fails and we have old ICS, serve it
+						if (kvIcs) {
+							log(
+								"warn",
+								"ICS generation failed, serving stale cache as fallback",
+							);
+							ics = kvIcs;
+							etag = kvMetadata?.etag || (await generateEtag(kvIcs));
+							updatedAt = kvMetadata?.updatedAt || new Date().toISOString();
+						} else {
+							log("error", "ICS generation failed and no cache available");
+							return new Response("Calendar not available yet", {
+								status: 503,
+								headers: { "retry-after": "3600" },
+							});
+						}
+					}
 				}
 
-				const icsResponse = buildIcsResponse(ics, etag, lastModified);
-				await caches.default.put(cacheRequest, icsResponse.clone());
+				const lastModified = new Date(updatedAt).toUTCString();
 
+				// Check if client has the same etag
 				if (ifNoneMatch === etag) {
-					log("info", "Returning 304 Not Modified (KV fallback)");
+					log("info", "Returning 304 Not Modified");
 					const responseHeaders = new Headers({ etag });
 					responseHeaders.set("last-modified", lastModified);
 					return new Response(null, { status: 304, headers: responseHeaders });
 				}
 
-				log("info", "Serving ICS file from KV");
+				// Build and cache response
+				const icsResponse = buildIcsResponse(ics, etag, lastModified);
+				await caches.default.put(cacheRequest, icsResponse.clone());
 
+				log("info", "Serving ICS file");
 				return icsResponse;
 			}
 			log("info", "Path not found", { path: url.pathname });
@@ -103,47 +173,6 @@ export default {
 			const stack = err instanceof Error ? err.stack : undefined;
 			log("error", "Error in fetch handler", { error: message, stack });
 			return new Response("Internal server error", { status: 500 });
-		}
-	},
-
-	// Cron Trigger
-	async scheduled(_evt: ScheduledController, env: Env) {
-		log("info", "Scheduled function called!");
-		try {
-			const currentYear = new Date().getFullYear();
-			const events = await getEventsFromSite(currentYear);
-
-			if (!events || events.length === 0) {
-				log("warn", "No events parsed from site");
-				return; // Do not overwrite existing ICS if no events are found
-			}
-
-			const calendar = createCalendarWithEvents(events);
-
-			const icsString = calendar.toString();
-			const updatedAt = new Date().toISOString();
-			const etag = await generateEtag(icsString);
-
-			await env.KNUE_CAL_KV.put("latest", icsString, {
-				metadata: {
-					updatedAt,
-					etag,
-				},
-			});
-
-			const cachedResponse = buildIcsResponse(
-				icsString,
-				etag,
-				new Date(updatedAt).toUTCString(),
-			);
-
-			await caches.default.put(cacheRequest, cachedResponse);
-			log("info", "ICS generated, saved to KV, and cache warmed!");
-		} catch (err: unknown) {
-			const message = err instanceof Error ? err.message : String(err);
-			const stack = err instanceof Error ? err.stack : undefined;
-			log("error", "Error in scheduled function", { error: message, stack });
-			// If an error occurs, the previous valid ICS in KV will be preserved.
 		}
 	},
 };

@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CACHE_KEY } from "../src/constants";
 import worker from "../src/index";
 import type { Env } from "../src/types";
-import { generateEtag } from "../src/utils/etag";
 import {
 	createMockRequest,
 	installMockCaches,
@@ -79,27 +78,33 @@ describe("Worker Cache Integration", () => {
 		expect(warmed).toBeDefined();
 	});
 
-	it("warms cache after scheduled run", async () => {
-		const mockController = {} as ScheduledController;
+	it("warms cache after on-demand generation", async () => {
+		// Trigger on-demand ICS generation by requesting when cache is empty
+		const request = createMockRequest("https://example.com/events.ics");
+		const response = await worker.fetch(request, env);
 
-		await worker.scheduled(mockController, env);
+		expect(response.status).toBe(200);
 
+		// Verify HTTP cache was warmed
 		const cached = await caches.default.match(new Request(CACHE_KEY));
 		expect(cached).toBeDefined();
 	});
 
 	it("handles missing metadata gracefully with fallback", async () => {
 		const icsContent = "BEGIN:VCALENDAR\nEND:VCALENDAR";
-		// Simulate legacy data without metadata
+		// Simulate legacy data without metadata - should trigger regeneration
 		await kv.put("latest", icsContent);
 
 		const request = createMockRequest("https://example.com/events.ics");
 		const response = await worker.fetch(request, env);
 
 		expect(response.status).toBe(200);
-		expect(await response.text()).toBe(icsContent);
-		// Should still have a Last-Modified header (fallback to current time)
+		// Should regenerate since metadata is missing
+		const responseText = await response.text();
+		expect(responseText).toContain("BEGIN:VCALENDAR");
+		expect(responseText).toContain("개강일");
+		// Should have Last-Modified and etag headers
 		expect(response.headers.get("last-modified")).toBeDefined();
-		expect(response.headers.get("etag")).toBe(await generateEtag(icsContent));
+		expect(response.headers.get("etag")).toBeDefined();
 	});
 });

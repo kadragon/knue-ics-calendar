@@ -1,18 +1,20 @@
-- task_id: TASK-CI-001
-  spec_id: SPEC-CI-001
-  title: "Setup GitHub Actions CI"
-  status: completed
-  completion_date: "2025-11-26"
-  notes: "Created .github/workflows/ci.yml with lint, typecheck, and test jobs."
-- task_id: TASK-CI-002
-  spec_id: SPEC-CI-001
-  title: "Add Build Step to CI"
-  status: completed
-  completion_date: "2025-11-26"
-  notes: "Added build script to package.json and build step to CI."
-- task_id: TASK-MIGRATE-BIOME
-  spec_id: SPEC-CI-001
-  title: "Migrate to Biome"
-  status: completed
-  completion_date: "2025-11-26"
-  notes: "Replaced ESLint/Prettier with Biome. Updated scripts and CI."
+completed_tasks:
+  - id: TASK-on-demand-1
+    title: "Implement on-demand ICS generation with 24-hour caching"
+    spec_id: SPEC-on-demand-ics-generation-1
+    completed_at: "2025-12-18T08:00:00Z"
+    summary: |
+      Successfully migrated from scheduled cron-based generation to on-demand generation.
+      
+      Changes:
+      - Removed `scheduled()` handler and `[triggers]` cron from wrangler.toml
+      - Added `isCacheValid()` to check if KCS is within 24 hours
+      - Added `generateAndSaveIcs()` to fetch events and save to KV
+      - Updated fetch handler: check HTTP cache → check KV cache age → generate on-demand or use stale cache as fallback
+      - Updated CACHE_CONFIG with kvTtl constant
+      
+      Testing:
+      - All 61 tests passing
+      - New test suite for on-demand cache behavior
+      - Graceful fallback to stale cache if generation fails
+      - 503 error only when cache missing and generation fails

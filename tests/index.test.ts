@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import type { Env } from "../src/types";
 import {
@@ -40,18 +40,28 @@ describe("Main Worker Handler", () => {
 	});
 
 	describe("fetch handler", () => {
-		it("should return 503 when ICS not available in KV", async () => {
+		it("should generate ICS on-demand when not in KV", async () => {
 			const request = createMockRequest("https://example.com/calendar.ics");
 
 			const response = await worker.fetch(request, env);
 
-			expect(response.status).toBe(503);
-			expect(await response.text()).toBe("Calendar not available yet");
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-type")).toBe(
+				"text/calendar; charset=utf-8",
+			);
+			const ics = await response.text();
+			expect(ics).toContain("BEGIN:VCALENDAR");
+			expect(ics).toContain("개강일");
 		});
 
 		it("should return ICS file when available", async () => {
 			const icsContent = "BEGIN:VCALENDAR\nEND:VCALENDAR";
-			await kvStore.put("latest", icsContent);
+			const now = new Date();
+			const metadata = {
+				updatedAt: now.toISOString(),
+				etag: "test-etag",
+			};
+			await kvStore.put("latest", icsContent, { metadata });
 
 			const request = createMockRequest("https://example.com/calendar.ics");
 			const response = await worker.fetch(request, env);
@@ -153,87 +163,82 @@ describe("Main Worker Handler", () => {
 		});
 	});
 
-	describe("scheduled handler", () => {
-		it("should generate and store ICS when events are available", async () => {
-			const mockController = {} as ScheduledController;
+	describe("on-demand cache behavior", () => {
+		it("should serve cached ICS when within 24 hours", async () => {
+			const icsContent = "BEGIN:VCALENDAR\n개강일\nEND:VCALENDAR";
+			const now = new Date();
+			const metadata = {
+				updatedAt: now.toISOString(),
+				etag: "test-etag-123",
+			};
 
-			await worker.scheduled(mockController, env);
+			await kvStore.put("latest", icsContent, { metadata });
 
-			const storedIcs = await kvStore.get("latest");
-			expect(storedIcs).toBeTruthy();
-			expect(storedIcs).toContain("BEGIN:VCALENDAR");
-			expect(storedIcs).toContain("개강일");
+			const request = createMockRequest("https://example.com/calendar.ics");
+			const response = await worker.fetch(request, env);
+
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe(icsContent);
+			expect(response.headers.get("etag")).toBe("test-etag-123");
 		});
 
-		it("should not overwrite existing ICS when no events found", async () => {
-			// Pre-populate KV with existing ICS
-			const existingIcs = "EXISTING:CALENDAR";
-			await kvStore.put("latest", existingIcs);
+		it("should regenerate ICS when cache is older than 24 hours", async () => {
+			const oldIcs = "BEGIN:VCALENDAR\n이전\nEND:VCALENDAR";
+			const oldDate = new Date(Date.now() - 25 * 60 * 60 * 1000); // 25 hours ago
 
-			// Mock parser to return empty events
-			const { getEventsFromSite } = await import("../src/parser.js");
-			vi.mocked(getEventsFromSite).mockResolvedValueOnce([]);
+			const metadata = {
+				updatedAt: oldDate.toISOString(),
+				etag: "old-etag",
+			};
 
-			const mockController = {} as ScheduledController;
-			await worker.scheduled(mockController, env);
+			await kvStore.put("latest", oldIcs, { metadata });
 
-			const storedIcs = await kvStore.get("latest");
-			expect(storedIcs).toBe(existingIcs); // Should remain unchanged
+			const request = createMockRequest("https://example.com/calendar.ics");
+			const response = await worker.fetch(request, env);
+
+			expect(response.status).toBe(200);
+			const ics = await response.text();
+			expect(ics).toContain("BEGIN:VCALENDAR");
+			expect(ics).toContain("개강일"); // New events, not old ones
 		});
 
-		it("should handle parser errors gracefully", async () => {
-			// Mock parser to throw error
+		it("should use stale cache as fallback when generation fails", async () => {
+			const staleIcs = "BEGIN:VCALENDAR\nstale\nEND:VCALENDAR";
+			const oldDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
+
+			const metadata = {
+				updatedAt: oldDate.toISOString(),
+				etag: "stale-etag",
+			};
+
+			await kvStore.put("latest", staleIcs, { metadata });
+
+			// Mock parser to fail
 			const { getEventsFromSite } = await import("../src/parser.js");
 			vi.mocked(getEventsFromSite).mockRejectedValueOnce(
 				new Error("Parser error"),
 			);
 
-			const mockController = {} as ScheduledController;
+			const request = createMockRequest("https://example.com/calendar.ics");
+			const response = await worker.fetch(request, env);
 
-			// Should not throw
-			await expect(
-				worker.scheduled(mockController, env),
-			).resolves.toBeUndefined();
+			// Should serve stale cache instead of failing
+			expect(response.status).toBe(200);
+			expect(await response.text()).toBe(staleIcs);
 		});
 
-		it("should handle non-Error parser exceptions gracefully", async () => {
-			// Mock parser to throw non-Error
+		it("should return 503 when no cache and generation fails", async () => {
+			// Mock parser to fail
 			const { getEventsFromSite } = await import("../src/parser.js");
-			vi.mocked(getEventsFromSite).mockRejectedValueOnce("String parser error");
-
-			const mockController = {} as ScheduledController;
-
-			// Should not throw
-			await expect(
-				worker.scheduled(mockController, env),
-			).resolves.toBeUndefined();
-		});
-
-		it("should create calendar with correct metadata", async () => {
-			const mockController = {} as ScheduledController;
-
-			await worker.scheduled(mockController, env);
-
-			const storedIcs = await kvStore.get("latest");
-			expect(storedIcs).toContain(
-				"PRODID:--//Github@kadragon//knue-ics-calendar//KO",
+			vi.mocked(getEventsFromSite).mockRejectedValueOnce(
+				new Error("Parser error"),
 			);
-			expect(storedIcs).toContain("X-WR-CALNAME:한국교원대학교 학사 일정");
-			expect(storedIcs).toContain("BEGIN:VCALENDAR");
-			expect(storedIcs).toContain("END:VCALENDAR");
-		});
 
-		it("should handle long events by splitting them", async () => {
-			const mockController = {} as ScheduledController;
+			const request = createMockRequest("https://example.com/calendar.ics");
+			const response = await worker.fetch(request, env);
 
-			await worker.scheduled(mockController, env);
-
-			const storedIcs = await kvStore.get("latest");
-			// Should contain both start and end events for 여름방학
-			expect(storedIcs).toContain("여름방학");
-			// Should see multiple events (split long event + regular event)
-			const eventCount = (storedIcs?.match(/BEGIN:VEVENT/g) || []).length;
-			expect(eventCount).toBeGreaterThan(2); // At least 3 events (개강일 + 여름방학 start + 여름방학 end)
+			expect(response.status).toBe(503);
+			expect(await response.text()).toBe("Calendar not available yet");
 		});
 	});
 });
