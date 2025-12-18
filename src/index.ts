@@ -16,16 +16,20 @@ const buildIcsResponse = (
 	ics: string,
 	etag: string,
 	lastModified: string,
-): Response =>
-	new Response(ics, {
+	isStale = false,
+): Response => {
+	// If serving stale data, use a much shorter cache duration
+	const maxAge = isStale ? 60 : CACHE_CONFIG.maxAge;
+	return new Response(ics, {
 		headers: {
 			"content-type": "text/calendar; charset=utf-8",
-			"cache-control": `public, max-age=${CACHE_CONFIG.maxAge}`,
+			"cache-control": `public, max-age=${maxAge}`,
 			"content-disposition": 'attachment; filename="events.ics"',
 			etag,
 			"last-modified": lastModified,
 		},
 	});
+};
 
 /**
  * Check if ICS cache is still valid (within 24 hours)
@@ -37,6 +41,19 @@ const isCacheValid = (updatedAt: string | undefined): boolean => {
 	const ageMs = now - cacheTime;
 	const maxAgeMs = CACHE_CONFIG.kvTtl * 1000;
 	return ageMs < maxAgeMs;
+};
+
+/**
+ * Extract ICS data from KV cache with metadata
+ */
+const extractKvData = async (
+	kvIcs: string,
+	kvMetadata: IcsMetadata | null,
+): Promise<{ ics: string; etag: string; updatedAt: string }> => {
+	const ics = kvIcs;
+	const etag = kvMetadata?.etag || (await generateEtag(kvIcs));
+	const updatedAt = kvMetadata?.updatedAt || new Date().toISOString();
+	return { ics, etag, updatedAt };
 };
 
 /**
@@ -110,13 +127,15 @@ export default {
 				let ics: string;
 				let etag: string;
 				let updatedAt: string;
+				let servedStale = false;
 
 				if (kvIcs && isCacheValid(kvMetadata?.updatedAt)) {
 					// KV cache is valid, use it
 					log("info", "Serving ICS file from KV cache (within 24 hours)");
-					ics = kvIcs;
-					etag = kvMetadata?.etag || (await generateEtag(kvIcs));
-					updatedAt = kvMetadata?.updatedAt || new Date().toISOString();
+					const extracted = await extractKvData(kvIcs, kvMetadata);
+					ics = extracted.ics;
+					etag = extracted.etag;
+					updatedAt = extracted.updatedAt;
 				} else {
 					// KV cache is missing or stale, generate new ICS
 					if (kvIcs) {
@@ -136,9 +155,11 @@ export default {
 								"warn",
 								"ICS generation failed, serving stale cache as fallback",
 							);
-							ics = kvIcs;
-							etag = kvMetadata?.etag || (await generateEtag(kvIcs));
-							updatedAt = kvMetadata?.updatedAt || new Date().toISOString();
+							const extracted = await extractKvData(kvIcs, kvMetadata);
+							ics = extracted.ics;
+							etag = extracted.etag;
+							updatedAt = extracted.updatedAt;
+							servedStale = true;
 						} else {
 							log("error", "ICS generation failed and no cache available");
 							return new Response("Calendar not available yet", {
@@ -160,7 +181,12 @@ export default {
 				}
 
 				// Build and cache response
-				const icsResponse = buildIcsResponse(ics, etag, lastModified);
+				const icsResponse = buildIcsResponse(
+					ics,
+					etag,
+					lastModified,
+					servedStale,
+				);
 				await caches.default.put(cacheRequest, icsResponse.clone());
 
 				log("info", "Serving ICS file");
