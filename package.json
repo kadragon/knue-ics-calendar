@@ -26,15 +26,15 @@
 		"ical-generator": "^10.0.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.3",
-		"@cloudflare/workers-types": "^4.20260227.0",
-		"@types/node": "^25.3.0",
+		"@biomejs/biome": "^2.4.4",
+		"@cloudflare/workers-types": "^4.20260305.0",
+		"@types/node": "^25.3.2",
 		"@vitest/coverage-v8": "^4.0.18",
 		"@vitest/ui": "^4.0.16",
 		"husky": "^9.1.7",
 		"jsdom": "^28.1.0",
 		"typescript": "^5.9.3",
 		"vitest": "^4.0.16",
-		"wrangler": "^4.67.0"
+		"wrangler": "^4.69.0"
 	}
 }
