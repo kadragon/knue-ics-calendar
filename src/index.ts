@@ -160,15 +160,7 @@ export default {
 
 						// Push to Gist in background (non-blocking, non-fatal)
 						if (env.GITHUB_TOKEN && env.GIST_ID) {
-							ctx.waitUntil(
-								updateGist(env.GITHUB_TOKEN, env.GIST_ID, ics).catch(
-									(err: unknown) => {
-										const message =
-											err instanceof Error ? err.message : String(err);
-										log("error", "Gist update error", { error: message });
-									},
-								),
-							);
+							ctx.waitUntil(updateGist(env.GITHUB_TOKEN, env.GIST_ID, ics));
 						}
 					} catch (_genErr: unknown) {
 						// If generation fails and we have old ICS, serve it

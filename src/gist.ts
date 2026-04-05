@@ -9,31 +9,37 @@ export async function updateGist(
 	gistId: string,
 	icsContent: string,
 ): Promise<void> {
-	const url = `https://api.github.com/gists/${gistId}`;
-	const res = await fetch(url, {
-		method: "PATCH",
-		headers: {
-			authorization: `Bearer ${token}`,
-			accept: "application/vnd.github+json",
-			"user-agent": "KNUE-ICS-Calendar/1.0.0",
-		},
-		body: JSON.stringify({
-			files: {
-				"knue-calendar.ics": {
-					content: icsContent,
-				},
+	try {
+		const url = `https://api.github.com/gists/${gistId}`;
+		const res = await fetch(url, {
+			method: "PATCH",
+			headers: {
+				authorization: `Bearer ${token}`,
+				accept: "application/vnd.github+json",
+				"user-agent": "KNUE-ICS-Calendar/1.0.0",
 			},
-		}),
-	});
-
-	if (!res.ok) {
-		const body = await res.text();
-		log("error", "Gist update failed", {
-			status: res.status,
-			body: body.slice(0, 200),
+			body: JSON.stringify({
+				files: {
+					"knue-calendar.ics": {
+						content: icsContent,
+					},
+				},
+			}),
 		});
-		return;
-	}
 
-	log("info", "Gist updated successfully");
+		if (!res.ok) {
+			const body = await res.text();
+			log("error", "Gist update failed", {
+				status: res.status,
+				body: body.slice(0, 200),
+				gistId,
+			});
+			return;
+		}
+
+		log("info", "Gist updated successfully");
+	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		log("error", "Gist update error", { error: message, gistId });
+	}
 }

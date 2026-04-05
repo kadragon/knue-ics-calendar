@@ -1,9 +1,13 @@
 /**
  * 학사년도: 3월~익년 2월. 3월 이상이면 해당 연도, 1~2월이면 전년도.
+ * CF Workers는 UTC 기준이므로 Asia/Seoul 타임존으로 변환하여 계산.
  */
 export function getAcademicYear(date: Date): number {
-	const month = date.getMonth() + 1;
-	return month >= 3 ? date.getFullYear() : date.getFullYear() - 1;
+	const koreaDate = new Date(
+		date.toLocaleString("en-US", { timeZone: "Asia/Seoul" }),
+	);
+	const month = koreaDate.getMonth() + 1;
+	return month >= 3 ? koreaDate.getFullYear() : koreaDate.getFullYear() - 1;
 }
 
 /**

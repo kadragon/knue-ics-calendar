@@ -43,13 +43,13 @@ describe("updateGist", () => {
 		).resolves.toBeUndefined();
 	});
 
-	it("should not catch fetch errors (caller handles)", async () => {
+	it("should catch fetch errors without throwing", async () => {
 		const mockFetch = vi.fn().mockRejectedValue(new Error("Network error"));
 		globalThis.fetch = mockFetch;
 
-		// updateGist does not catch fetch errors — they propagate to the caller
+		// updateGist catches all errors internally — never throws
 		await expect(
 			updateGist("test-token", "gist-123", "ICS content"),
-		).rejects.toThrow("Network error");
+		).resolves.toBeUndefined();
 	});
 });
