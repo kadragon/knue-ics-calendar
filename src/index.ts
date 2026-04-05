@@ -1,8 +1,11 @@
 import { CACHE_CONFIG, CACHE_KEY } from "./constants";
+import { updateGist } from "./gist";
 import { getEventsFromSite } from "./parser";
 import type { Env } from "./types";
+import { getAcademicYearsToFetch } from "./utils/academic-year";
 import { createCalendarWithEvents } from "./utils/calendar";
 import { generateEtag } from "./utils/etag";
+import { deduplicateEvents } from "./utils/events";
 import { log } from "./utils/logger";
 
 type IcsMetadata = {
@@ -67,8 +70,14 @@ const generateAndSaveIcs = async (
 	updatedAt: string;
 }> => {
 	log("info", "Generating ICS on-demand");
-	const currentYear = new Date().getFullYear();
-	const events = await getEventsFromSite(currentYear);
+	const [current, previous] = getAcademicYearsToFetch(new Date());
+	const [currentEvents, prevEvents] = await Promise.all([
+		getEventsFromSite(current),
+		getEventsFromSite(previous),
+	]);
+	const events = deduplicateEvents([...prevEvents, ...currentEvents]).sort(
+		(a, b) => a.start.getTime() - b.start.getTime(),
+	);
 
 	if (!events || events.length === 0) {
 		log("error", "No events parsed from site");
@@ -93,7 +102,7 @@ const generateAndSaveIcs = async (
 };
 
 export default {
-	async fetch(req: Request, env: Env) {
+	async fetch(req: Request, env: Env, ctx: ExecutionContext) {
 		try {
 			const url = new URL(req.url);
 			if (url.pathname.endsWith(".ics")) {
@@ -148,6 +157,11 @@ export default {
 						ics = result.ics;
 						etag = result.etag;
 						updatedAt = result.updatedAt;
+
+						// Push to Gist in background (non-blocking, non-fatal)
+						if (env.GITHUB_TOKEN && env.GIST_ID) {
+							ctx.waitUntil(updateGist(env.GITHUB_TOKEN, env.GIST_ID, ics));
+						}
 					} catch (_genErr: unknown) {
 						// If generation fails and we have old ICS, serve it
 						if (kvIcs) {

@@ -142,6 +142,16 @@ export function createMockRequest(
 	return new Request(url, { headers });
 }
 
+export function createMockExecutionContext(): ExecutionContext {
+	return {
+		waitUntil: (_promise: Promise<unknown>) => {},
+		passThroughOnException: () => {},
+		abort: () => {},
+		exports: {},
+		props: undefined,
+	} as unknown as ExecutionContext;
+}
+
 export function createMockResponse(
 	body: string,
 	status: number = 200,
