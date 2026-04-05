@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
 import type { Env } from "../src/types";
 import {
+	createMockExecutionContext,
 	createMockRequest,
 	installMockCaches,
 	MockKVNamespace,
@@ -23,14 +24,21 @@ vi.mock("../src/parser", () => ({
 	]),
 }));
 
+// Mock the academic-year module to return predictable values
+vi.mock("../src/utils/academic-year", () => ({
+	getAcademicYearsToFetch: vi.fn().mockReturnValue([2024, 2023]),
+}));
+
 describe("Main Worker Handler", () => {
 	let kvStore: MockKVNamespace;
 	let env: Env;
+	let ctx: ExecutionContext;
 	let cacheRestore: { restore(): void };
 
 	beforeEach(() => {
 		kvStore = new MockKVNamespace();
 		env = { KNUE_CAL_KV: kvStore as unknown as KVNamespace };
+		ctx = createMockExecutionContext();
 		cacheRestore = installMockCaches();
 		vi.clearAllMocks();
 	});
@@ -43,7 +51,7 @@ describe("Main Worker Handler", () => {
 		it("should generate ICS on-demand when not in KV", async () => {
 			const request = createMockRequest("https://example.com/calendar.ics");
 
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get("content-type")).toBe(
@@ -52,6 +60,17 @@ describe("Main Worker Handler", () => {
 			const ics = await response.text();
 			expect(ics).toContain("BEGIN:VCALENDAR");
 			expect(ics).toContain("개강일");
+		});
+
+		it("should fetch two academic years and call getEventsFromSite twice", async () => {
+			const { getEventsFromSite } = await import("../src/parser.js");
+
+			const request = createMockRequest("https://example.com/calendar.ics");
+			await worker.fetch(request, env, ctx);
+
+			expect(getEventsFromSite).toHaveBeenCalledTimes(2);
+			expect(getEventsFromSite).toHaveBeenCalledWith(2024);
+			expect(getEventsFromSite).toHaveBeenCalledWith(2023);
 		});
 
 		it("should return ICS file when available", async () => {
@@ -64,7 +83,7 @@ describe("Main Worker Handler", () => {
 			await kvStore.put("latest", icsContent, { metadata });
 
 			const request = createMockRequest("https://example.com/calendar.ics");
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe(icsContent);
@@ -82,7 +101,7 @@ describe("Main Worker Handler", () => {
 			const firstRequest = createMockRequest(
 				"https://example.com/calendar.ics",
 			);
-			const firstResponse = await worker.fetch(firstRequest, env);
+			const firstResponse = await worker.fetch(firstRequest, env, ctx);
 			const etag = firstResponse.headers.get("etag");
 			expect(etag).toBeTruthy();
 
@@ -93,7 +112,7 @@ describe("Main Worker Handler", () => {
 					"if-none-match": etag ?? "",
 				},
 			);
-			const secondResponse = await worker.fetch(secondRequest, env);
+			const secondResponse = await worker.fetch(secondRequest, env, ctx);
 
 			expect(secondResponse.status).toBe(304);
 		});
@@ -106,7 +125,7 @@ describe("Main Worker Handler", () => {
 				"accept-encoding": "gzip, deflate",
 			});
 
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(200);
 			expect(response.headers.get("content-encoding")).toBeNull();
@@ -118,7 +137,7 @@ describe("Main Worker Handler", () => {
 		it("should return 404 for non-ICS paths", async () => {
 			const request = createMockRequest("https://example.com/other-path");
 
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(404);
 			expect(await response.text()).toBe("Not found");
@@ -137,7 +156,7 @@ describe("Main Worker Handler", () => {
 			} as Env;
 
 			const request = createMockRequest("https://example.com/calendar.ics");
-			const response = await worker.fetch(request, errorEnv);
+			const response = await worker.fetch(request, errorEnv, ctx);
 
 			expect(response.status).toBe(500);
 			expect(await response.text()).toBe("Internal server error");
@@ -156,7 +175,7 @@ describe("Main Worker Handler", () => {
 			} as Env;
 
 			const request = createMockRequest("https://example.com/calendar.ics");
-			const response = await worker.fetch(request, errorEnv);
+			const response = await worker.fetch(request, errorEnv, ctx);
 
 			expect(response.status).toBe(500);
 			expect(await response.text()).toBe("Internal server error");
@@ -175,7 +194,7 @@ describe("Main Worker Handler", () => {
 			await kvStore.put("latest", icsContent, { metadata });
 
 			const request = createMockRequest("https://example.com/calendar.ics");
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(200);
 			expect(await response.text()).toBe(icsContent);
@@ -194,7 +213,7 @@ describe("Main Worker Handler", () => {
 			await kvStore.put("latest", oldIcs, { metadata });
 
 			const request = createMockRequest("https://example.com/calendar.ics");
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(200);
 			const ics = await response.text();
@@ -220,7 +239,7 @@ describe("Main Worker Handler", () => {
 			);
 
 			const request = createMockRequest("https://example.com/calendar.ics");
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			// Should serve stale cache instead of failing
 			expect(response.status).toBe(200);
@@ -235,7 +254,7 @@ describe("Main Worker Handler", () => {
 			);
 
 			const request = createMockRequest("https://example.com/calendar.ics");
-			const response = await worker.fetch(request, env);
+			const response = await worker.fetch(request, env, ctx);
 
 			expect(response.status).toBe(503);
 			expect(await response.text()).toBe("Calendar not available yet");

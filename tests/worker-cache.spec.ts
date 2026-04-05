@@ -3,6 +3,7 @@ import { CACHE_KEY } from "../src/constants";
 import worker from "../src/index";
 import type { Env } from "../src/types";
 import {
+	createMockExecutionContext,
 	createMockRequest,
 	installMockCaches,
 	MockKVNamespace,
@@ -18,14 +19,20 @@ vi.mock("../src/parser", () => ({
 	]),
 }));
 
+vi.mock("../src/utils/academic-year", () => ({
+	getAcademicYearsToFetch: vi.fn().mockReturnValue([2024, 2023]),
+}));
+
 describe("Worker Cache Integration", () => {
 	let kv: MockKVNamespace;
 	let env: Env;
+	let ctx: ExecutionContext;
 	let cacheRestore: { restore(): void };
 
 	beforeEach(() => {
 		kv = new MockKVNamespace();
 		env = { KNUE_CAL_KV: kv as unknown as KVNamespace };
+		ctx = createMockExecutionContext();
 
 		cacheRestore = installMockCaches();
 		vi.clearAllMocks();
@@ -49,7 +56,7 @@ describe("Worker Cache Integration", () => {
 		await caches.default.put(new Request(CACHE_KEY), cacheResponse);
 
 		const request = createMockRequest("https://example.com/events.ics");
-		const response = await worker.fetch(request, env);
+		const response = await worker.fetch(request, env, ctx);
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe(icsContent);
@@ -66,7 +73,7 @@ describe("Worker Cache Integration", () => {
 		});
 
 		const request = createMockRequest("https://example.com/events.ics");
-		const response = await worker.fetch(request, env);
+		const response = await worker.fetch(request, env, ctx);
 
 		expect(response.status).toBe(200);
 		expect(await response.text()).toBe(icsContent);
@@ -81,7 +88,7 @@ describe("Worker Cache Integration", () => {
 	it("warms cache after on-demand generation", async () => {
 		// Trigger on-demand ICS generation by requesting when cache is empty
 		const request = createMockRequest("https://example.com/events.ics");
-		const response = await worker.fetch(request, env);
+		const response = await worker.fetch(request, env, ctx);
 
 		expect(response.status).toBe(200);
 
@@ -96,7 +103,7 @@ describe("Worker Cache Integration", () => {
 		await kv.put("latest", icsContent);
 
 		const request = createMockRequest("https://example.com/events.ics");
-		const response = await worker.fetch(request, env);
+		const response = await worker.fetch(request, env, ctx);
 
 		expect(response.status).toBe(200);
 		// Should regenerate since metadata is missing
