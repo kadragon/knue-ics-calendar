@@ -23,18 +23,18 @@
 	"license": "ISC",
 	"dependencies": {
 		"cheerio": "^1.2.0",
-		"ical-generator": "^10.1.0"
+		"ical-generator": "^10.2.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.12",
-		"@cloudflare/workers-types": "^4.20260417.1",
+		"@biomejs/biome": "^2.4.13",
+		"@cloudflare/workers-types": "^4.20260424.1",
 		"@types/node": "^25.6.0",
-		"@vitest/coverage-v8": "^4.1.4",
+		"@vitest/coverage-v8": "^4.1.5",
 		"@vitest/ui": "^4.0.16",
 		"husky": "^9.1.7",
 		"jsdom": "^29.0.2",
 		"typescript": "^6.0.3",
 		"vitest": "^4.0.16",
-		"wrangler": "^4.83.0"
+		"wrangler": "^4.85.0"
 	}
 }
