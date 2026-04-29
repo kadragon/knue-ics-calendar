@@ -1,5 +1,7 @@
 import { log } from "./utils/logger";
 
+const GIST_ID_RE = /^[0-9a-fA-F]{20,40}$/;
+
 /**
  * Update a GitHub Gist with ICS content.
  * Non-fatal: logs errors but never throws.
@@ -8,7 +10,13 @@ export async function updateGist(
 	token: string,
 	gistId: string,
 	icsContent: string,
+	filename = "knue-calendar.ics",
 ): Promise<void> {
+	if (!GIST_ID_RE.test(gistId)) {
+		log("error", "Invalid gistId format", { gistIdLength: gistId.length });
+		return;
+	}
+
 	try {
 		const url = `https://api.github.com/gists/${gistId}`;
 		const res = await fetch(url, {
@@ -20,7 +28,7 @@ export async function updateGist(
 			},
 			body: JSON.stringify({
 				files: {
-					"knue-calendar.ics": {
+					[filename]: {
 						content: icsContent,
 					},
 				},

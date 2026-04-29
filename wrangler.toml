@@ -10,6 +10,12 @@ mode = "smart"
 binding = "KNUE_CAL_KV"
 id = "1c76e5f4218341d495b39b38c9a7f0f8"
 
+# Optional: override the filename used inside the Gist (default: knue-calendar.ics)
+# [vars]
+# GIST_FILENAME = "knue-calendar.ics"
+#
+# Secrets (set via `wrangler secret put`): GITHUB_TOKEN, GIST_ID
+
 [observability]
 [observability.logs]
 enabled = true
