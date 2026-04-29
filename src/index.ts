@@ -11,6 +11,7 @@ import { log } from "./utils/logger";
 type IcsMetadata = {
 	updatedAt?: string;
 	etag?: string;
+	eventsHash?: string;
 };
 
 const cacheRequest = new Request(CACHE_KEY);
@@ -64,10 +65,12 @@ const extractKvData = async (
  */
 const generateAndSaveIcs = async (
 	env: Env,
+	previousEventsHash?: string,
 ): Promise<{
 	ics: string;
 	etag: string;
 	updatedAt: string;
+	changed: boolean;
 }> => {
 	log("info", "Generating ICS on-demand");
 	const [current, previous] = getAcademicYearsToFetch(new Date());
@@ -84,6 +87,12 @@ const generateAndSaveIcs = async (
 		throw new Error("No events found from site");
 	}
 
+	const eventsFingerprint = events
+		.map((e) => `${e.title}|${e.start.toISOString()}|${e.end.toISOString()}`)
+		.join("\n");
+	const eventsHash = await generateEtag(eventsFingerprint);
+	const changed = eventsHash !== previousEventsHash;
+
 	const calendar = createCalendarWithEvents(events);
 	const icsString = calendar.toString();
 	const updatedAt = new Date().toISOString();
@@ -94,11 +103,12 @@ const generateAndSaveIcs = async (
 		metadata: {
 			updatedAt,
 			etag,
+			eventsHash,
 		},
 	});
 
 	log("info", "ICS generated and saved to KV");
-	return { ics: icsString, etag, updatedAt };
+	return { ics: icsString, etag, updatedAt, changed };
 };
 
 export default {
@@ -153,14 +163,26 @@ export default {
 						log("info", "KV cache is empty, generating ICS");
 					}
 					try {
-						const result = await generateAndSaveIcs(env);
+						const result = await generateAndSaveIcs(
+							env,
+							kvMetadata?.eventsHash,
+						);
 						ics = result.ics;
 						etag = result.etag;
 						updatedAt = result.updatedAt;
 
-						// Push to Gist in background (non-blocking, non-fatal)
-						if (env.GITHUB_TOKEN && env.GIST_ID) {
-							ctx.waitUntil(updateGist(env.GITHUB_TOKEN, env.GIST_ID, ics));
+						// Push to Gist in background only when content changed (non-blocking, non-fatal)
+						if (result.changed && env.GITHUB_TOKEN && env.GIST_ID) {
+							ctx.waitUntil(
+								updateGist(
+									env.GITHUB_TOKEN,
+									env.GIST_ID,
+									ics,
+									env.GIST_FILENAME,
+								),
+							);
+						} else if (!result.changed && env.GITHUB_TOKEN && env.GIST_ID) {
+							log("info", "Gist update skipped — content unchanged");
 						}
 					} catch (_genErr: unknown) {
 						// If generation fails and we have old ICS, serve it

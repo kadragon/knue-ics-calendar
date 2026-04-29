@@ -24,6 +24,10 @@ vi.mock("../src/parser", () => ({
 	]),
 }));
 
+vi.mock("../src/gist", () => ({
+	updateGist: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock the academic-year module to return predictable values
 vi.mock("../src/utils/academic-year", () => ({
 	getAcademicYearsToFetch: vi.fn().mockReturnValue([2024, 2023]),
@@ -258,6 +262,60 @@ describe("Main Worker Handler", () => {
 
 			expect(response.status).toBe(503);
 			expect(await response.text()).toBe("Calendar not available yet");
+		});
+	});
+
+	describe("Gist update behavior", () => {
+		const gistEnv = (): Env => ({
+			KNUE_CAL_KV: kvStore as unknown as KVNamespace,
+			GITHUB_TOKEN: "test-token",
+			GIST_ID: "a".repeat(32),
+		});
+
+		it("should call updateGist when content changes (no previous eventsHash)", async () => {
+			const { updateGist } = await import("../src/gist.js");
+			const request = createMockRequest("https://example.com/calendar.ics");
+
+			await worker.fetch(request, gistEnv(), ctx);
+
+			expect(vi.mocked(updateGist)).toHaveBeenCalledOnce();
+		});
+
+		it("should skip updateGist when eventsHash is unchanged", async () => {
+			const { updateGist } = await import("../src/gist.js");
+			const { generateEtag } = await import("../src/utils/etag.js");
+
+			// Pre-compute the eventsHash for the mocked fixed events
+			const fixedEvents = [
+				{
+					start: new Date("2024-03-01"),
+					end: new Date("2024-03-01"),
+					title: "개강일",
+				},
+				{
+					start: new Date("2024-06-01"),
+					end: new Date("2024-08-31"),
+					title: "여름방학",
+				},
+			].sort((a, b) => a.start.getTime() - b.start.getTime());
+			const fingerprint = fixedEvents
+				.map(
+					(e) => `${e.title}|${e.start.toISOString()}|${e.end.toISOString()}`,
+				)
+				.join("\n");
+			const eventsHash = await generateEtag(fingerprint);
+
+			// Store stale KV entry with the same eventsHash
+			const oldDate = new Date(Date.now() - 25 * 60 * 60 * 1000);
+			await kvStore.put("latest", "BEGIN:VCALENDAR\nEND:VCALENDAR", {
+				metadata: { updatedAt: oldDate.toISOString(), etag: "old", eventsHash },
+			});
+
+			vi.mocked(updateGist).mockClear();
+			const request = createMockRequest("https://example.com/calendar.ics");
+			await worker.fetch(request, gistEnv(), ctx);
+
+			expect(vi.mocked(updateGist)).not.toHaveBeenCalled();
 		});
 	});
 });
