@@ -23,7 +23,7 @@
 	"license": "ISC",
 	"dependencies": {
 		"cheerio": "^1.2.0",
-		"ical-generator": "^10.2.0"
+		"ical-generator": "^11.0.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
