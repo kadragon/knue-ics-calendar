@@ -27,14 +27,14 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
-		"@cloudflare/workers-types": "^4.20260529.1",
+		"@cloudflare/workers-types": "^4.20260605.1",
 		"@types/node": "^25.9.1",
-		"@vitest/coverage-v8": "^4.1.7",
+		"@vitest/coverage-v8": "^4.1.8",
 		"@vitest/ui": "^4.0.16",
 		"husky": "^9.1.7",
 		"jsdom": "^29.1.1",
 		"typescript": "^6.0.3",
 		"vitest": "^4.0.16",
-		"wrangler": "^4.95.0"
+		"wrangler": "^4.98.0"
 	}
 }
