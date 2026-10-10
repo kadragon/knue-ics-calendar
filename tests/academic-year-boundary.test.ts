@@ -30,18 +30,18 @@ describe("Academic-year boundary ICS generation", () => {
 		"includes January and February 2026 when generating in April with %s KV cache",
 		async (cacheState) => {
 			const january: Event = {
-				start: new Date("2026-01-15"),
-				end: new Date("2026-01-15"),
+				start: new Date(2026, 0, 15),
+				end: new Date(2026, 0, 15),
 				title: "January academic event",
 			};
 			const february: Event = {
-				start: new Date("2026-02-20"),
-				end: new Date("2026-02-20"),
+				start: new Date(2026, 1, 20),
+				end: new Date(2026, 1, 20),
 				title: "February academic event",
 			};
 			const march: Event = {
-				start: new Date("2026-03-02"),
-				end: new Date("2026-03-02"),
+				start: new Date(2026, 2, 2),
+				end: new Date(2026, 2, 2),
 				title: "March academic event",
 			};
 			vi.mocked(getEventsFromSite).mockImplementation(async (year) => {
