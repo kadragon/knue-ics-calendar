@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- [done] Remove GitHub Gist sync; the worker serves ICS directly (2026-10-17)
 - [done] Verify January and February ICS events across academic years (2026-10-10)
 
 ## Implementation inventory migrated from tasks.md
