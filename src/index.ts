@@ -1,5 +1,4 @@
 import { CACHE_CONFIG, CACHE_KEY } from "./constants";
-import { updateGist } from "./gist";
 import { getEventsFromSite } from "./parser";
 import type { Env } from "./types";
 import { getAcademicYearsToFetch } from "./utils/academic-year";
@@ -11,7 +10,6 @@ import { log } from "./utils/logger";
 type IcsMetadata = {
 	updatedAt?: string;
 	etag?: string;
-	eventsHash?: string;
 };
 
 const cacheRequest = new Request(CACHE_KEY);
@@ -65,13 +63,7 @@ const extractKvData = async (
  */
 const generateAndSaveIcs = async (
 	env: Env,
-	previousEventsHash?: string,
-): Promise<{
-	ics: string;
-	etag: string;
-	updatedAt: string;
-	changed: boolean;
-}> => {
+): Promise<{ ics: string; etag: string; updatedAt: string }> => {
 	log("info", "Generating ICS on-demand");
 	const [current, previous] = getAcademicYearsToFetch(new Date());
 	const [currentEvents, prevEvents] = await Promise.all([
@@ -87,12 +79,6 @@ const generateAndSaveIcs = async (
 		throw new Error("No events found from site");
 	}
 
-	const eventsFingerprint = events
-		.map((e) => `${e.title}|${e.start.toISOString()}|${e.end.toISOString()}`)
-		.join("\n");
-	const eventsHash = await generateEtag(eventsFingerprint);
-	const changed = eventsHash !== previousEventsHash;
-
 	const calendar = createCalendarWithEvents(events);
 	const icsString = calendar.toString();
 	const updatedAt = new Date().toISOString();
@@ -103,16 +89,15 @@ const generateAndSaveIcs = async (
 		metadata: {
 			updatedAt,
 			etag,
-			eventsHash,
 		},
 	});
 
 	log("info", "ICS generated and saved to KV");
-	return { ics: icsString, etag, updatedAt, changed };
+	return { ics: icsString, etag, updatedAt };
 };
 
 export default {
-	async fetch(req: Request, env: Env, ctx: ExecutionContext) {
+	async fetch(req: Request, env: Env, _ctx: ExecutionContext) {
 		try {
 			const url = new URL(req.url);
 			if (url.pathname.endsWith(".ics")) {
@@ -163,27 +148,10 @@ export default {
 						log("info", "KV cache is empty, generating ICS");
 					}
 					try {
-						const result = await generateAndSaveIcs(
-							env,
-							kvMetadata?.eventsHash,
-						);
+						const result = await generateAndSaveIcs(env);
 						ics = result.ics;
 						etag = result.etag;
 						updatedAt = result.updatedAt;
-
-						// Push to Gist in background only when content changed (non-blocking, non-fatal)
-						if (result.changed && env.GITHUB_TOKEN && env.GIST_ID) {
-							ctx.waitUntil(
-								updateGist(
-									env.GITHUB_TOKEN,
-									env.GIST_ID,
-									ics,
-									env.GIST_FILENAME,
-								),
-							);
-						} else if (!result.changed && env.GITHUB_TOKEN && env.GIST_ID) {
-							log("info", "Gist update skipped — content unchanged");
-						}
 					} catch (_genErr: unknown) {
 						// If generation fails and we have old ICS, serve it
 						if (kvIcs) {
