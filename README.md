@@ -34,7 +34,6 @@ A robust Cloudflare Worker that automatically parses the academic calendar from 
    ```
 
 2. **Configure Cloudflare KV:**
-
    - Create a KV namespace in your Cloudflare dashboard
    - Update `wrangler.toml` with your namespace details:
 
@@ -101,7 +100,7 @@ Modify cache duration in `src/constants.ts`:
 
 ```typescript
 export const CACHE_CONFIG = {
-  maxAge: 60 * 60 * 24, // 24 hours in seconds
+	maxAge: 60 * 60 * 24, // 24 hours in seconds
 } as const;
 ```
 
@@ -111,9 +110,9 @@ Adjust retry behavior in `src/constants.ts`:
 
 ```typescript
 export const REQUEST_CONFIG = {
-  timeout: 10000, // 10 seconds
-  maxRetries: 3, // 3 retry attempts
-  retryDelayMs: 2000, // 2 second base delay
+	timeout: 10000, // 10 seconds
+	maxRetries: 3, // 3 retry attempts
+	retryDelayMs: 2000, // 2 second base delay
 } as const;
 ```
 

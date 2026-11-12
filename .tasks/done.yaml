@@ -5,14 +5,14 @@ completed_tasks:
     completed_at: "2025-12-18T08:00:00Z"
     summary: |
       Successfully migrated from scheduled cron-based generation to on-demand generation.
-      
+
       Changes:
       - Removed `scheduled()` handler and `[triggers]` cron from wrangler.toml
       - Added `isCacheValid()` to check if KCS is within 24 hours
       - Added `generateAndSaveIcs()` to fetch events and save to KV
       - Updated fetch handler: check HTTP cache → check KV cache age → generate on-demand or use stale cache as fallback
       - Updated CACHE_CONFIG with kvTtl constant
-      
+
       Testing:
       - All 61 tests passing
       - New test suite for on-demand cache behavior
