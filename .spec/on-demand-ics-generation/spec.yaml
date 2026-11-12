@@ -20,13 +20,13 @@ given_when_then:
 acceptance_tests:
   - id: TEST-on-demand-1
     desc: "Serve cached ICS when within 24-hour window"
-    
+
   - id: TEST-on-demand-2
     desc: "Generate new ICS when cache is older than 24 hours"
-    
+
   - id: TEST-on-demand-3
     desc: "Generate new ICS when KV is empty"
-    
+
   - id: TEST-on-demand-4
     desc: "Preserve etag and last-modified for cache validation"
 
