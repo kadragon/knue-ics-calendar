@@ -61,6 +61,12 @@ npm run dev
 Access endpoints:
 
 - Calendar: `http://localhost:8787/events.ics`
+- Cache status: `http://localhost:8787/status.json` — read-only, `Cache-Control: no-store`.
+  Reports the KV calendar's `updatedAt`, `ageSeconds`, `checkedAt`, and a `status` of
+  `fresh` (younger than the KV TTL), `stale`, `missing` (no cached calendar), or `unknown`
+  (missing/invalid/future timestamp or KV error). It never fetches the source site or
+  regenerates; a stale status is not proof of an outage, and it says nothing about edge-cached
+  or subscriber-side copies.
 - Manual trigger: `http://localhost:8787/cdn-cgi/handler/scheduled`
 
 ## 📅 Calendar Subscription

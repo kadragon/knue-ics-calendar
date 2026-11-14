@@ -6,6 +6,7 @@ import { createCalendarWithEvents } from "./utils/calendar";
 import { generateEtag } from "./utils/etag";
 import { deduplicateEvents } from "./utils/events";
 import { log } from "./utils/logger";
+import { getCacheStatus } from "./utils/status";
 
 type IcsMetadata = {
 	updatedAt?: string;
@@ -100,6 +101,14 @@ export default {
 	async fetch(req: Request, env: Env, _ctx: ExecutionContext) {
 		try {
 			const url = new URL(req.url);
+			if (url.pathname === "/status.json") {
+				return Response.json(await getCacheStatus(env), {
+					headers: {
+						"content-type": "application/json; charset=utf-8",
+						"cache-control": "no-store",
+					},
+				});
+			}
 			if (url.pathname.endsWith(".ics")) {
 				const ifNoneMatch = req.headers.get("if-none-match");
 
